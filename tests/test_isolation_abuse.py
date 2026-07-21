@@ -137,8 +137,8 @@ def test_pids_ceiling_refuses_a_thread_bomb(
         "    threading.Thread(target=time.sleep, args=(5,), daemon=True).start()\n"
         "print('pid-limit-escaped')\n"
     )
-    # Use the production ceiling. gVisor's sandbox needs more than 24 host tasks to boot, while a
-    # 500-thread bomb still exceeds the configured 128-task container limit by a wide margin.
+    # Use the production ceiling. The cgroup contains runc tasks; the paired OCI RLIMIT_NPROC
+    # contains gVisor's virtual guest tasks. A 500-thread bomb exceeds either 128-task boundary.
     completed = _run_probe(isolated_runner, probe, max_pids=DEFAULT_PIDS)
 
     assert completed.returncode != 0
