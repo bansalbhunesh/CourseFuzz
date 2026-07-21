@@ -21,11 +21,13 @@ from coursefuzz.domain.models import (
     HypothesisVerdict,
     JsonAtom,
     MutationMetrics,
+    OracleDecision,
     PatchTarget,
     ProgramVariant,
     SuiteExecution,
     TestCase,
 )
+from coursefuzz.domain.oracle import CompositeOracle
 
 
 def bind_candidate_payload(candidate: CandidatePatch) -> CandidatePatch:
@@ -46,10 +48,12 @@ class AssessmentEngine:
         sandbox: SubprocessPythonSandbox,
         hypotheses: HypothesisProvider,
         max_analysis_seconds: float = 30.0,
+        oracle: CompositeOracle | None = None,
     ) -> None:
         self.sandbox = sandbox
         self.hypotheses = hypotheses
         self.max_analysis_seconds = max_analysis_seconds
+        self.oracle = oracle or CompositeOracle()
 
     def analyze(self, assignment: AssignmentSpec) -> AnalysisResult:
         deadline = time.monotonic() + self.max_analysis_seconds
@@ -95,12 +99,12 @@ class AssessmentEngine:
         )
         target = self._program_by_id(survivors, winner.killed_mutants[0])
         minimized_inputs = self._minimize(assignment, target, deadline)
-        expected = self._consensus_expected(assignment, minimized_inputs, deadline)
-        if expected is None:
+        decision = self._oracle_decision(assignment, minimized_inputs, deadline)
+        if decision.expected is None:
             raise ValueError("Independent accepted solutions did not agree on the minimized input")
         minimized = TestCase(
             inputs=minimized_inputs,
-            expected=expected,
+            expected=decision.expected,
             label=f"CourseFuzz regression: {winner.hypothesis.misconception}",
             source="minimized",
         )
@@ -128,6 +132,7 @@ class AssessmentEngine:
             observed_actual,
             target.title,
             assignment,
+            decision,
         )
 
         return AnalysisResult(
@@ -244,30 +249,31 @@ class AssessmentEngine:
             killed_mutants=tuple(killed),
         )
 
+    def _oracle_decision(
+        self,
+        assignment: AssignmentSpec,
+        inputs: tuple[int, ...],
+        deadline: float,
+    ) -> OracleDecision:
+        def probe(program: ProgramVariant) -> JsonAtom | None:
+            case = TestCase(
+                inputs=inputs, expected=None, label="oracle probe", source="deterministic"
+            )
+            execution = self._run_suite(program, assignment.entrypoint, (case,), deadline)
+            if execution.error or not execution.outputs:
+                return None
+            output = execution.outputs[0]["actual"]
+            return output if isinstance(output, (str, int, float, bool)) else None
+
+        return self.oracle.decide(assignment, inputs, probe)
+
     def _consensus_expected(
         self,
         assignment: AssignmentSpec,
         inputs: tuple[int, ...],
         deadline: float,
     ) -> JsonAtom | None:
-        probe = TestCase(
-            inputs=inputs,
-            expected=None,
-            label="oracle probe",
-            source="deterministic",
-        )
-        outputs: list[JsonAtom] = []
-        for solution in assignment.accepted_solutions:
-            execution = self._run_suite(
-                solution, assignment.entrypoint, (probe,), deadline
-            )
-            if execution.error or not execution.outputs:
-                return None
-            output = execution.outputs[0]["actual"]
-            if not isinstance(output, (str, int, float, bool)):
-                return None
-            outputs.append(output)
-        return outputs[0] if len(set(outputs)) == 1 else None
+        return self._oracle_decision(assignment, inputs, deadline).expected
 
     def _minimize(
         self,
@@ -346,6 +352,7 @@ class AssessmentEngine:
         observed_actual: JsonAtom,
         target_title: str,
         assignment: AssignmentSpec,
+        oracle: OracleDecision,
     ) -> CandidatePatch:
         case_key = json.dumps(
             {"inputs": list(test.inputs), "expected": test.expected},
@@ -383,6 +390,7 @@ class AssessmentEngine:
             target_mutants=killed_mutants,
             payload_sha256="pending",
             pytest_source=pytest_source,
+            oracle=oracle,
             target=target,
         )
         return bind_candidate_payload(candidate)

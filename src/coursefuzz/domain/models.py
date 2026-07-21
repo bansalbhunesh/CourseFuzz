@@ -228,6 +228,27 @@ class MutationMetrics(BaseModel):
     accepted_solution_pass_rate: float
 
 
+class OracleDecision(BaseModel):
+    """How the expected output for one input was established (or why the oracle abstained).
+
+    Makes the truth source auditable: a resolved decision records which independent sources agreed
+    and how; an abstention records why. Bound into the candidate so approval covers provenance.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    expected: JsonAtom | None = None
+    decision: Literal["resolved", "abstained"]
+    provenance: str
+    evidence_sources: tuple[str, ...] = ()
+    quorum: int = 0
+    abstention_reason: str | None = None
+
+    @property
+    def resolved(self) -> bool:
+        return self.decision == "resolved"
+
+
 class CandidatePatch(BaseModel):
     id: str
     test: TestCase
@@ -236,6 +257,7 @@ class CandidatePatch(BaseModel):
     target_mutants: tuple[str, ...]
     payload_sha256: str
     pytest_source: str
+    oracle: OracleDecision | None = None
     target: PatchTarget = Field(
         default_factory=lambda: PatchTarget(
             kind="local_artifact",
