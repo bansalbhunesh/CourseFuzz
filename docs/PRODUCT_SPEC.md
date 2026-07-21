@@ -24,6 +24,10 @@ An immutable assignment snapshot contains:
 - one to one hundred instructor tests with scalar JSON outputs;
 - either a local artifact target or a GitHub repository, base branch, and test directory.
 
+The current generated pytest contract imports the declared entrypoint from `solution.py`. A target
+repository must expose that module convention; configurable invocation/module adapters are a
+post-release milestone rather than an unverified claim in this slice.
+
 Snapshot IDs are derived from canonical SHA-256 content. Runs bind to that full hash, so later
 assignment edits cannot silently change historical evidence.
 

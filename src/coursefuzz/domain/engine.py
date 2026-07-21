@@ -336,6 +336,7 @@ class AssessmentEngine:
         case_digest = hashlib.sha256(case_key).hexdigest()[:8]
         safe_entrypoint = re.sub(r"[^a-zA-Z0-9_]", "_", entrypoint).lower()
         pytest_source = (
+            f"from solution import {entrypoint}\n\n\n"
             f"def test_coursefuzz_{safe_entrypoint}_{case_digest}():\n"
             f"    assert {entrypoint}{test.inputs!r} == {test.expected!r}\n"
         )

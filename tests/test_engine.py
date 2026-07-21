@@ -1,3 +1,6 @@
+import sys
+import types
+
 import pytest
 
 from coursefuzz.adapters.hypotheses import DeterministicHypothesisProvider
@@ -8,7 +11,9 @@ from coursefuzz.domain.models import AssignmentSpec, ProgramVariant
 from coursefuzz.domain.models import TestCase as DomainTestCase
 
 
-def test_engine_finds_minimal_verified_counterexample() -> None:
+def test_engine_finds_minimal_verified_counterexample(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     engine = AssessmentEngine(SubprocessPythonSandbox(), DeterministicHypothesisProvider())
 
     result = engine.analyze(TRIANGLE_ASSIGNMENT)
@@ -24,6 +29,40 @@ def test_engine_finds_minimal_verified_counterexample() -> None:
         "mutant-no-bc-pair",
         "mutant-guarded-bc",
     }
+    assert result.candidate.pytest_source.startswith(
+        "from solution import classify_triangle\n"
+    )
+    accepted_module = types.ModuleType("solution")
+    exec(TRIANGLE_ASSIGNMENT.reference.source, accepted_module.__dict__)
+    monkeypatch.setitem(sys.modules, "solution", accepted_module)
+    accepted_patch: dict[str, object] = {}
+    exec(result.candidate.pytest_source, accepted_patch)
+    generated_test = next(
+        value
+        for name, value in accepted_patch.items()
+        if name.startswith("test_coursefuzz_")
+    )
+    assert callable(generated_test)
+    generated_test()
+
+    wrong_module = types.ModuleType("solution")
+    wrong_source = next(
+        mutant.source
+        for mutant in TRIANGLE_ASSIGNMENT.mutants
+        if mutant.id == "mutant-ab-only"
+    )
+    exec(wrong_source, wrong_module.__dict__)
+    monkeypatch.setitem(sys.modules, "solution", wrong_module)
+    wrong_patch: dict[str, object] = {}
+    exec(result.candidate.pytest_source, wrong_patch)
+    wrong_test = next(
+        value
+        for name, value in wrong_patch.items()
+        if name.startswith("test_coursefuzz_")
+    )
+    assert callable(wrong_test)
+    with pytest.raises(AssertionError):
+        wrong_test()
     assert result.evidence["gpt_decides_correctness"] is False
 
 

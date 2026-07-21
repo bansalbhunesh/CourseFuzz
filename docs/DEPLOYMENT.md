@@ -54,7 +54,8 @@ GitHub delivery needs a dedicated integration repository plus a fine-grained tok
 `Contents: write` and `Pull requests: write`. The release proof must show the exact base commit,
 run-specific branch, draft pull request, destination read-back SHA-256, and rerun receipt. Do not
 use the product repository itself as a destructive demo target. Set the server-side repository
-allowlist even when the token itself is already repository-scoped.
+allowlist even when the token itself is already repository-scoped. The target repository must
+provide `solution.py` with the assignment entrypoint so its CI can execute the generated pytest.
 
 ## Current evidence and blocker
 
