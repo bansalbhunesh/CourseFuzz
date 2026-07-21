@@ -71,6 +71,12 @@ equal-budgeted, and sealed before the hidden scorer opens raw rows. The scorer c
 reports defect recall, false kills, abstentions, queries to first finding, executions, wall time,
 and 95% Wilson intervals.
 
+The immutable
+[real-corpus replay run](https://github.com/bansalbhunesh/CourseFuzz/actions/runs/29877855863)
+regenerated the frozen selection from the pinned official upstream rows, verified its digest, and
+passed the real-evaluation contract tests on merged commit
+`da42f777b091775c6512b2b868bfde0693c8de67`. Raw corpus contents were not uploaded as artifacts.
+
 This is infrastructure evidence, not a benchmark result. The 500 wrong labels are still upstream
 labels, license review and second-review signoff are pending, and the scorer deliberately has no
 host-process executor. Metrics can be published only after the stdin invocation phase supplies the

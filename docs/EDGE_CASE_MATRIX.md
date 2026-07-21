@@ -22,7 +22,7 @@ Status: `covered`, `bounded`, or `release blocker`.
 | Sandbox timeout | Terminate process at total deadline and return structured evidence | sandbox test boundary | covered |
 | Sandbox resource abuse | Enforce no-network, read-only root, bounded tmpfs, memory, and PID ceilings outside the guest | live runc/runsc hostile probes | covered |
 | SSE reconnect | Resume strictly after `Last-Event-ID` without duplicate event | API SSE test | covered |
-| Deployment drift | Show commit SHA and run clean deployed smoke test | deployment not created | release blocker |
+| Deployment drift | Show commit SHA and run clean deployed smoke test | public health receipt + main CI container smoke | covered |
 | Accepted-solution false kill | Block closure unless all accepted solutions still pass | engine metric + test | covered |
 | Destination mismatch | Fail if file bytes or rerun metrics differ from approved projection | API golden-path test | covered |
 | GitHub branch/PR duplicate | Reuse the run-specific branch/PR and verify exact bytes | fake-transport adapter test | covered |
