@@ -1,0 +1,29 @@
+services:
+  coursefuzz:
+    build:
+      context: .
+    image: coursefuzz:local
+    ports:
+      - "8000:8000"
+    environment:
+      COURSEFUZZ_ACCESS_KEYS_JSON: "${COURSEFUZZ_ACCESS_KEYS_JSON:-}"
+      COURSEFUZZ_COOKIE_SECURE: "${COURSEFUZZ_COOKIE_SECURE:-1}"
+      COURSEFUZZ_GITHUB_TOKEN: "${COURSEFUZZ_GITHUB_TOKEN:-}"
+      COURSEFUZZ_COMMIT_SHA: "${COURSEFUZZ_COMMIT_SHA:-local-container}"
+      COURSEFUZZ_MODEL: "${COURSEFUZZ_MODEL:-gpt-5.6-sol}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+    volumes:
+      - coursefuzz-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 1g
+    restart: unless-stopped
+
+volumes:
+  coursefuzz-data:

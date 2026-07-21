@@ -43,10 +43,13 @@ def test_golden_path_is_idempotent_approved_applied_and_read_back(tmp_path: Path
     assert applied.status_code == 200
     assert applied.json()["status"] == "verified"
     assert applied.json()["artifact_sha256"]
+    assert applied.json()["action_receipt"]["read_back_verified"] is True
+    assert applied.json()["action_receipt"]["kind"] == "local_artifact"
 
     artifact = client.get(f"/api/runs/{run_id}/artifact")
     assert artifact.status_code == 200
     assert artifact.headers["x-artifact-sha256"] == applied.json()["artifact_sha256"]
+    assert "attachment" in artifact.headers["content-disposition"]
     assert "assert classify_triangle(1, 2, 2) == 'isosceles'" in artifact.text
 
     events = client.get(f"/api/runs/{run_id}/events")

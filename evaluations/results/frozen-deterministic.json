@@ -1,0 +1,169 @@
+{
+  "aggregate": {
+    "abstention_rate": 0.0,
+    "accepted_controls": 20,
+    "assignments": 10,
+    "coursefuzz_advantage_over_random_8_points": 0.0,
+    "coursefuzz_gain_points": 40.0,
+    "coursefuzz_mutation_score": 93.3,
+    "false_kill_rate": 0.0,
+    "finding_rate": 100.0,
+    "hypothesis_budget_per_assignment": 8,
+    "instructor_mutation_score": 53.3,
+    "median_latency_seconds": 6.211,
+    "p95_latency_seconds": 9.355,
+    "random_8_mutation_score": 93.3,
+    "wrong_programs": 60
+  },
+  "baseline": "frozen-random-8",
+  "benchmark": "coursefuzz-synthetic-heldout-v1",
+  "cases": [
+    {
+      "accepted_solution_pass_rate": 100.0,
+      "assignment_id": "eval-absolute-value",
+      "coursefuzz_finding": true,
+      "coursefuzz_killed": 6,
+      "instructor_killed": 3,
+      "latency_seconds": 7.927,
+      "minimized_input": [
+        -1
+      ],
+      "mutants": 6,
+      "random_8_finding": true,
+      "random_8_killed": 6
+    },
+    {
+      "accepted_solution_pass_rate": 100.0,
+      "assignment_id": "eval-maximum-pair",
+      "coursefuzz_finding": true,
+      "coursefuzz_killed": 5,
+      "instructor_killed": 3,
+      "latency_seconds": 8.409,
+      "minimized_input": [
+        -1,
+        0
+      ],
+      "mutants": 6,
+      "random_8_finding": true,
+      "random_8_killed": 5
+    },
+    {
+      "accepted_solution_pass_rate": 100.0,
+      "assignment_id": "eval-minimum-pair",
+      "coursefuzz_finding": true,
+      "coursefuzz_killed": 6,
+      "instructor_killed": 3,
+      "latency_seconds": 9.355,
+      "minimized_input": [
+        0,
+        -1
+      ],
+      "mutants": 6,
+      "random_8_finding": true,
+      "random_8_killed": 6
+    },
+    {
+      "accepted_solution_pass_rate": 100.0,
+      "assignment_id": "eval-clamp-unit",
+      "coursefuzz_finding": true,
+      "coursefuzz_killed": 6,
+      "instructor_killed": 4,
+      "latency_seconds": 4.936,
+      "minimized_input": [
+        -2
+      ],
+      "mutants": 6,
+      "random_8_finding": true,
+      "random_8_killed": 6
+    },
+    {
+      "accepted_solution_pass_rate": 100.0,
+      "assignment_id": "eval-parity-label",
+      "coursefuzz_finding": true,
+      "coursefuzz_killed": 5,
+      "instructor_killed": 2,
+      "latency_seconds": 5.507,
+      "minimized_input": [
+        0
+      ],
+      "mutants": 6,
+      "random_8_finding": true,
+      "random_8_killed": 5
+    },
+    {
+      "accepted_solution_pass_rate": 100.0,
+      "assignment_id": "eval-multiple-three",
+      "coursefuzz_finding": true,
+      "coursefuzz_killed": 5,
+      "instructor_killed": 3,
+      "latency_seconds": 4.827,
+      "minimized_input": [
+        0
+      ],
+      "mutants": 6,
+      "random_8_finding": true,
+      "random_8_killed": 5
+    },
+    {
+      "accepted_solution_pass_rate": 100.0,
+      "assignment_id": "eval-sign-category",
+      "coursefuzz_finding": true,
+      "coursefuzz_killed": 6,
+      "instructor_killed": 3,
+      "latency_seconds": 4.93,
+      "minimized_input": [
+        0
+      ],
+      "mutants": 6,
+      "random_8_finding": true,
+      "random_8_killed": 6
+    },
+    {
+      "accepted_solution_pass_rate": 100.0,
+      "assignment_id": "eval-inclusive-order",
+      "coursefuzz_finding": true,
+      "coursefuzz_killed": 6,
+      "instructor_killed": 5,
+      "latency_seconds": 6.916,
+      "minimized_input": [
+        0,
+        -1
+      ],
+      "mutants": 6,
+      "random_8_finding": true,
+      "random_8_killed": 6
+    },
+    {
+      "accepted_solution_pass_rate": 100.0,
+      "assignment_id": "eval-median-three",
+      "coursefuzz_finding": true,
+      "coursefuzz_killed": 6,
+      "instructor_killed": 4,
+      "latency_seconds": 8.221,
+      "minimized_input": [
+        1,
+        2,
+        1
+      ],
+      "mutants": 6,
+      "random_8_finding": true,
+      "random_8_killed": 6
+    },
+    {
+      "accepted_solution_pass_rate": 100.0,
+      "assignment_id": "eval-low-band",
+      "coursefuzz_finding": true,
+      "coursefuzz_killed": 5,
+      "instructor_killed": 2,
+      "latency_seconds": 5.343,
+      "minimized_input": [
+        1
+      ],
+      "mutants": 6,
+      "random_8_finding": true,
+      "random_8_killed": 5
+    }
+  ],
+  "corpus_sha256": "28bac80a9cf89dec3800f64cdd98d610f0341fdb70032d83623572176bb8361f",
+  "provider": "deterministic-fallback"
+}

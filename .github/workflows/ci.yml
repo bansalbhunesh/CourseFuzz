@@ -11,6 +11,22 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: coursefuzz_test
+          POSTGRES_USER: coursefuzz
+          POSTGRES_PASSWORD: coursefuzz_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U coursefuzz -d coursefuzz_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_TEST_URL: postgresql://coursefuzz:coursefuzz_test@127.0.0.1:5432/coursefuzz_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,8 +34,21 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install -e '.[dev]'
-      - run: python -m ruff check src tests scripts
+      - run: python -m ruff check src tests scripts evaluations
+      - run: python scripts/release_guard.py
       - run: python -m pytest --cov=coursefuzz --cov-report=term-missing
+
+  frozen-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e '.[dev]'
+      - run: python scripts/run_frozen_benchmark.py --no-write
 
   frontend:
     runs-on: ubuntu-latest
@@ -36,3 +65,30 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --tag coursefuzz:ci .
+      - name: Start production image
+        run: >-
+          docker run --detach --name coursefuzz-ci --publish 8000:8000
+          --env COURSEFUZZ_COMMIT_SHA=${{ github.sha }} coursefuzz:ci
+      - name: Verify health and compiled frontend
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8000/api/health > health.json; then
+              break
+            fi
+            sleep 1
+          done
+          python -c "import json; data=json.load(open('health.json')); assert data['status']=='ok'; assert data['commit']=='${{ github.sha }}'"
+          curl --fail --silent http://127.0.0.1:8000/ | grep --quiet CourseFuzz
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs coursefuzz-ci
+      - name: Stop production image
+        if: always()
+        run: docker rm --force coursefuzz-ci

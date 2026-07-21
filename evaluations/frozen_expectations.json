@@ -1,0 +1,25 @@
+{
+  "assignment_ids": [
+    "eval-absolute-value",
+    "eval-maximum-pair",
+    "eval-minimum-pair",
+    "eval-clamp-unit",
+    "eval-parity-label",
+    "eval-multiple-three",
+    "eval-sign-category",
+    "eval-inclusive-order",
+    "eval-median-three",
+    "eval-low-band"
+  ],
+  "benchmark": "coursefuzz-synthetic-heldout-v1",
+  "corpus_sha256": "28bac80a9cf89dec3800f64cdd98d610f0341fdb70032d83623572176bb8361f",
+  "maximums": {
+    "abstention_rate": 10.0,
+    "false_kill_rate": 0.0
+  },
+  "minimums": {
+    "coursefuzz_gain_points": 20.0,
+    "coursefuzz_mutation_score": 75.0,
+    "finding_rate": 90.0
+  }
+}
