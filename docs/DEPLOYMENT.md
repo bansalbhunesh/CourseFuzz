@@ -66,9 +66,17 @@ provide `solution.py` with the assignment entrypoint so its CI can execute the g
 
 ## Current evidence and blocker
 
-CI builds the production image and smoke-tests the health endpoint and compiled client. The local
-API and browser golden paths are verified. A public URL, hosted Postgres receipt, and live GitHub
-draft-PR receipt do not exist yet, so CourseFuzz is not submission-ready or production-ready.
+The public demo is live at <https://coursefuzz.onrender.com>. On 2026-07-22, the logged-out browser
+gate rendered successfully and `/api/health` returned HTTP 200 with `storage: postgres`,
+`auth: required`, `github_destination: configured`, and deployed commit
+`da42f777b091775c6512b2b868bfde0693c8de67`. The matching
+[main CI run](https://github.com/bansalbhunesh/CourseFuzz/actions/runs/29877846875) passed the backend,
+frontend, production-container, frozen-benchmark, and live runc/runsc isolation jobs.
+
+This is deployment evidence, not submission closure. The release manifest intentionally remains in
+`development`: no live CourseFuzz-created draft-PR/read-back receipt or demo video has been recorded
+yet. The authenticated deployed golden path must still be run against the dedicated Demo Target,
+and its exact external receipt must be persisted before calling the project submission-ready.
 
 The restricted AST runner remains a demonstration boundary even inside this container. A public
 service that accepts hostile submissions still requires one no-network microVM or hardened
