@@ -209,6 +209,9 @@ class AttackHypothesis(BaseModel):
     rationale: str
     misconception: str
     provider: Literal["gpt-5.6", "deterministic-fallback"]
+    # Which candidate generator produced this input, when a scheduler composes several. Optional so
+    # the single-provider path and existing serialized runs are unchanged.
+    generator: str | None = None
 
 
 class HypothesisVerdict(BaseModel):
