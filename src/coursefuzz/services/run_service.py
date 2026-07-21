@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -113,6 +115,10 @@ class RunService:
                     "Interrupted analysis returned to the durable queue.",
                 )
                 run = queued
+            if run.status == RunStatus.EXTERNAL_CI_PENDING:
+                self.poll_external_ci(run.id, tenant_id)
+                recovered += 1
+                continue
             if run.status == RunStatus.QUEUED:
                 self.analyze_run(run.id, tenant_id)
                 recovered += 1
@@ -294,11 +300,38 @@ class RunService:
                 {"error": retryable.error},
             )
             raise
+        receipt = applied.receipt
+        # A GitHub write is only half-verified here: bytes match and our own rerun passed, but the
+        # target repository's CI has not concluded. Hold at external_ci_pending until it does.
+        if receipt.kind == "github_pull_request" and receipt.commit_sha:
+            receipt = receipt.model_copy(update={"external_ci_started_at": utc_now()})
+            pending = applying.model_copy(
+                update={
+                    "status": RunStatus.EXTERNAL_CI_PENDING,
+                    "artifact_sha256": receipt.artifact_sha256,
+                    "action_receipt": receipt,
+                    "updated_at": utc_now(),
+                }
+            )
+            self.repository.save(pending)
+            self.repository.append_event(
+                run.id,
+                "external_ci.pending",
+                "external-ci",
+                "Draft PR written and byte read-back matched; awaiting the target repository CI.",
+                {
+                    "external_url": receipt.external_url,
+                    "commit_sha": receipt.commit_sha,
+                    "mutation_score": metrics.mutation_score,
+                },
+            )
+            return pending
+
         verified = applying.model_copy(
             update={
                 "status": RunStatus.VERIFIED,
-                "artifact_sha256": applied.receipt.artifact_sha256,
-                "action_receipt": applied.receipt,
+                "artifact_sha256": receipt.artifact_sha256,
+                "action_receipt": receipt,
                 "updated_at": utc_now(),
             }
         )
@@ -309,14 +342,100 @@ class RunService:
             "read-back",
             "Destination read-back matched and the repaired suite killed every viable mutant.",
             {
-                "artifact_sha256": applied.receipt.artifact_sha256,
+                "artifact_sha256": receipt.artifact_sha256,
                 "mutation_score": metrics.mutation_score,
                 "accepted_solution_pass_rate": metrics.accepted_solution_pass_rate,
-                "destination_kind": applied.receipt.kind,
-                "external_url": applied.receipt.external_url,
+                "destination_kind": receipt.kind,
+                "external_url": receipt.external_url,
             },
         )
         return verified
+
+    def poll_external_ci(
+        self,
+        run_id: str,
+        tenant_id: str = LOCAL_TENANT,
+        *,
+        deadline_seconds: float = 600.0,
+        now: Callable[[], datetime] = utc_now,
+    ) -> RunView:
+        """Advance an external_ci_pending run by reading the target repository's CI conclusion.
+
+        Idempotent and resumable: it reads GitHub check-runs for the written commit and moves the
+        run to verified only when byte read-back (already done) and target CI both succeed; to
+        external_ci_failed on a failing conclusion or once the deadline passes; otherwise it leaves
+        the run pending. It never merges or mutates the pull request.
+        """
+
+        run = self.require_run(run_id, tenant_id)
+        receipt = run.action_receipt
+        if (
+            run.status != RunStatus.EXTERNAL_CI_PENDING
+            or receipt is None
+            or not receipt.repository
+            or not receipt.commit_sha
+        ):
+            return run
+
+        status = self.destinations.github.check_runs(receipt.repository, receipt.commit_sha)
+        moment = now()
+        started = receipt.external_ci_started_at or moment
+        elapsed = (moment - started).total_seconds()
+
+        if status.state == "success":
+            finalized = receipt.model_copy(
+                update={
+                    "external_ci_url": status.url,
+                    "external_ci_conclusion": "success",
+                    "external_ci_completed_at": moment,
+                    "external_ci_verified": True,
+                }
+            )
+            verified = run.model_copy(
+                update={
+                    "status": RunStatus.VERIFIED,
+                    "action_receipt": finalized,
+                    "updated_at": moment,
+                }
+            )
+            self.repository.save(verified)
+            self.repository.append_event(
+                run.id,
+                "external_ci.verified",
+                "external-ci",
+                "Target repository CI passed on the draft PR; the external action is verified.",
+                {"external_ci_url": status.url},
+            )
+            return verified
+
+        if status.state == "failure" or elapsed > deadline_seconds:
+            conclusion = status.conclusion if status.state == "failure" else "timed_out"
+            finalized = receipt.model_copy(
+                update={
+                    "external_ci_url": status.url,
+                    "external_ci_conclusion": conclusion,
+                    "external_ci_completed_at": moment,
+                }
+            )
+            failed = run.model_copy(
+                update={
+                    "status": RunStatus.EXTERNAL_CI_FAILED,
+                    "action_receipt": finalized,
+                    "error": f"Target repository CI did not pass: {conclusion}",
+                    "updated_at": moment,
+                }
+            )
+            self.repository.save(failed)
+            self.repository.append_event(
+                run.id,
+                "external_ci.failed",
+                "external-ci",
+                "Target repository CI did not pass; the external action is not verified.",
+                {"external_ci_url": status.url, "conclusion": conclusion},
+            )
+            return failed
+
+        return run
 
     def require_run(self, run_id: str, tenant_id: str = LOCAL_TENANT) -> RunView:
         run = self.repository.get(run_id, tenant_id)

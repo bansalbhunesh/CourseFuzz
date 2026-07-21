@@ -250,12 +250,13 @@ class RunRepository:
         return runs
 
     def list_recoverable_runs(self, limit: int = 10) -> list[tuple[str, RunView]]:
-        placeholders = ", ".join("?" for _ in ("queued", "analyzing", "applying"))
+        statuses = ("queued", "analyzing", "applying", "external_ci_pending")
+        placeholders = ", ".join("?" for _ in statuses)
         with self._connect() as connection:
             rows = connection.execute(
                 f"SELECT owner_id, document FROM runs WHERE json_extract(document, '$.status') "
                 f"IN ({placeholders}) ORDER BY updated_at ASC LIMIT ?",
-                ("queued", "analyzing", "applying", limit),
+                (*statuses, limit),
             ).fetchall()
         return [
             (row["owner_id"], RunView.model_validate_json(row["document"])) for row in rows

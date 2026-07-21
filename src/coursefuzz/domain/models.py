@@ -29,8 +29,10 @@ class RunStatus(StrEnum):
     APPROVAL_REQUIRED = "approval_required"
     APPROVED = "approved"
     APPLYING = "applying"
+    EXTERNAL_CI_PENDING = "external_ci_pending"
     VERIFIED = "verified"
     NO_ACTION_REQUIRED = "no_action_required"
+    EXTERNAL_CI_FAILED = "external_ci_failed"
     FAILED = "failed"
 
 
@@ -263,6 +265,13 @@ class ActionReceipt(BaseModel):
     base_commit_sha: str | None = None
     commit_sha: str | None = None
     pull_request_number: int | None = None
+    # External (target-repository) CI read-back. A GitHub action is only fully verified once byte
+    # read-back AND the destination's own CI conclude. external_ci_verified stays False until then.
+    external_ci_started_at: datetime | None = None
+    external_ci_url: str | None = None
+    external_ci_conclusion: str | None = None
+    external_ci_completed_at: datetime | None = None
+    external_ci_verified: bool = False
 
 
 class AnalysisResult(BaseModel):

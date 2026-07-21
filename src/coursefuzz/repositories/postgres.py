@@ -242,9 +242,9 @@ class PostgresRunRepository:
         with self._connect() as connection:
             rows = connection.execute(
                 "SELECT owner_id, document FROM runs "
-                "WHERE document::jsonb->>'status' IN (%s, %s, %s) "
+                "WHERE document::jsonb->>'status' IN (%s, %s, %s, %s) "
                 "ORDER BY updated_at ASC LIMIT %s",
-                ("queued", "analyzing", "applying", limit),
+                ("queued", "analyzing", "applying", "external_ci_pending", limit),
             ).fetchall()
         return [
             (row["owner_id"], RunView.model_validate_json(row["document"])) for row in rows

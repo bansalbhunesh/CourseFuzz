@@ -39,6 +39,7 @@ TERMINAL_STREAM_STATES = {
     RunStatus.APPROVED,
     RunStatus.VERIFIED,
     RunStatus.NO_ACTION_REQUIRED,
+    RunStatus.EXTERNAL_CI_FAILED,
     RunStatus.FAILED,
 }
 
@@ -235,6 +236,18 @@ def build_router(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @router.post("/runs/{run_id}/external-ci", response_model=RunView)
+    def refresh_external_ci(
+        run_id: str,
+        principal: Principal = principal_dependency,
+    ) -> RunView:
+        # Advance an external_ci_pending run by reading the target CI once. A worker (or startup
+        # recovery) also does this automatically; this endpoint lets the app refresh on demand.
+        try:
+            return service.poll_external_ci(run_id, principal.tenant_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Run not found") from exc
 
     @router.get("/runs/{run_id}/artifact")
     def artifact(
