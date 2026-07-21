@@ -317,9 +317,16 @@ Tests and exit gate:
 
 Purpose: replace the synthetic-only credibility ceiling with independently reviewable evidence.
 
+Current Phase-5 branch progress: the pinned acquisition, 20-task/500-wrong-program manifest,
+complete exclusion ledger, public-only bundle, candidate receipt, equal-budget validation, hidden
+scorer contract, confidence intervals, and manual Linux replay workflow are implemented. Raw data
+remains non-vendored. Runtime label validation, baseline candidate files, cost-ledger joins, and
+second-review signoff remain open; no real-corpus performance claim exists yet.
+
 Use a non-vendored, license-reviewed Python slice of CodeContests first. Its whole-program
-stdin/stdout format is not compatible with the current callable-only product, so selection starts
-only after the versioned invocation adapter in Milestone 2 exists. Commit selection manifests,
+stdin/stdout format is not compatible with the current callable-only product, so execution-backed
+label validation and scoring start only after the versioned invocation adapter in Milestone 2
+exists. Hash-only selection can be prepared independently. Commit selection manifests,
 source URLs, upstream identifiers, licenses, hashes, transformations, and aggregate results—not a
 copied multi-gigabyte corpus. Select at least 20 assignments whose input constraints can be mapped
 without inventing hidden semantics, plus 500 non-equivalent wrong solutions. Record every

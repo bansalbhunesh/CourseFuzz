@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "corpus_id": "coursefuzz-codecontests-codenet-python3-v1",
+  "selection_sha256": "a8b0b5d8428c860e78884b4c10a46b14d8f0a903b0a14ce63198a0fbaa03dfd1",
+  "reviewer_name": "",
+  "reviewer_affiliation_or_role": "",
+  "reviewed_at_utc": "",
+  "license_and_provenance_reviewed": false,
+  "selection_filters_reviewed": false,
+  "accepted_controls_reviewed": false,
+  "wrong_labels_reviewed": false,
+  "runtime_exclusions_reviewed": false,
+  "decision": "pending",
+  "notes": ""
+}

@@ -32,6 +32,10 @@ entire misconception corpus.
 - Honest baseline: an equal-budget frozen random-8 search also reaches **93.3%** on this small
   corpus, so the result proves the verified repair loop—not search superiority or real-course
   generalization.
+- Real-corpus gate: a non-vendored CodeContests/CodeNet-origin manifest now freezes **20 tasks,
+  500 wrong programs, 40 oracle programs, and 60 accepted holdout controls** with a complete
+  exclusion ledger. It is not yet a scored claim: isolated stdin replay and second review remain
+  required.
 
 ## Quickstart
 
@@ -87,6 +91,7 @@ path exercised live in CI. It is defense-in-depth wiring, not yet the default an
 .\.venv\Scripts\python -m pytest
 .\.venv\Scripts\python -m ruff check .
 .\.venv\Scripts\python scripts/run_frozen_benchmark.py --no-write
+.\.venv\Scripts\python scripts/verify_real_manifest.py
 .\.venv\Scripts\python scripts/release_guard.py
 Set-Location web
 npm run build

@@ -24,6 +24,9 @@ dev = [
   "pytest-cov>=6.2,<7",
   "ruff>=0.12,<1",
 ]
+evaluation = [
+  "duckdb>=1.5.4,<2",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/coursefuzz"]

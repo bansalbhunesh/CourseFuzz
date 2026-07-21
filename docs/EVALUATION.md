@@ -50,10 +50,33 @@ from accepted-solution consensus and execution after proposals cross that bounda
 Synthetic v1 was authored within this repository, contains no personal data, and is not presented
 as a real-course or human-reviewed sample. See `evaluations/README.md` for provenance and limits.
 
-## Next benchmark gate
+## Frozen real-corpus selection (not yet a scored claim)
 
-Before making a general educational-impact or search-superiority claim, add a license-reviewed
-external benchmark with:
+`coursefuzz-codecontests-codenet-python3-v1` now freezes a non-vendored selection of 20 Python 3
+stdin/stdout tasks, 500 distinct wrong-program receipts, 40 oracle-program receipts, and 60 accepted
+holdout controls. The selection SHA-256 is
+`a8b0b5d8428c860e78884b4c10a46b14d8f0a903b0a14ce63198a0fbaa03dfd1`.
+
+The committed artifacts contain hashes and provenance only. Raw descriptions, tests, and programs
+remain in a gitignored cache. A complete 1,690-row exclusion ledger plus the 20 selected rows account
+for all 1,710 records in the five-shard scope. The collector uses pinned Parquet and the official
+dataset row API; Scrapling is intentionally unnecessary.
+
+The provider-visible bundle contains public context only. Candidate files are schema-constrained,
+equal-budgeted, and sealed before the hidden scorer opens raw rows. The scorer contract already
+reports defect recall, false kills, abstentions, queries to first finding, executions, wall time,
+and 95% Wilson intervals.
+
+This is infrastructure evidence, not a benchmark result. The 500 wrong labels are still upstream
+labels, license review and second-review signoff are pending, and the scorer deliberately has no
+host-process executor. Metrics can be published only after the stdin invocation phase supplies the
+isolated `runsc` adapter and the full replay succeeds. Reproduction and signoff instructions live in
+`evaluations/real/README.md`.
+
+## Remaining benchmark gate
+
+Before making a general educational-impact or search-superiority claim, finish the frozen external
+benchmark by providing:
 
 - at least 20 assignments and 500 non-equivalent wrong solutions or mutants;
 - hidden labels inaccessible to the hypothesis provider;
