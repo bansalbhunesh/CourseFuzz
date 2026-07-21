@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from coursefuzz.domain.models import RunStatus
+from coursefuzz.domain.models import MutationMetrics, RunStatus
 from coursefuzz.main import create_app
 
 
@@ -106,3 +106,37 @@ def test_consume_approval_is_bound_to_the_exact_token_and_payload(tmp_path: Path
     assert service.repository.consume_approval(run_id, token, "deadbeef") is False
     assert service.repository.consume_approval(run_id, "wrong-token", payload) is False
     assert service.repository.consume_approval(run_id, token, payload) is True
+
+
+def test_apply_fails_closed_when_post_write_metrics_diverge_from_projection(tmp_path: Path) -> None:
+    """After writing, CourseFuzz reruns the corpus and refuses to report success unless the result
+    matches the approved projection. Corrupt the recorded projection so the honest post-write
+    measurement cannot match it, and assert the run reverts to a retryable APPROVED state with no
+    verified receipt or persisted artifact — never a false 'verified'.
+    """
+
+    service = _service(tmp_path)
+    run_id, payload = _run_awaiting_approval(service, "post-write-divergence")
+
+    run = service.require_run(run_id)
+    assert run.analysis and run.analysis.candidate
+    total = run.analysis.projected_after.total_mutants
+    impossible_projection = MutationMetrics(
+        total_mutants=total,
+        killed_mutants=0,
+        surviving_mutants=total,
+        mutation_score=0.0,
+        accepted_solution_pass_rate=100.0,
+    )
+    tampered = run.analysis.model_copy(update={"projected_after": impossible_projection})
+    service.repository.save(run.model_copy(update={"analysis": tampered}))
+
+    receipt = service.approve(run_id, payload)
+    with pytest.raises(RuntimeError, match="diverged from the approved projection"):
+        service.apply(run_id, receipt.approval_token)
+
+    result = service.require_run(run_id)
+    assert result.status == RunStatus.APPROVED  # retryable, not VERIFIED
+    assert "diverged" in (result.error or "")
+    assert result.action_receipt is None
+    assert service.repository.artifact(run_id) is None
