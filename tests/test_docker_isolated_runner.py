@@ -20,9 +20,14 @@ from coursefuzz.adapters.isolated_runner import (
     GVisorDockerRunner,
 )
 from coursefuzz.domain.execution import ExecutionLimits, ExecutionOutcome, ExecutionRequest
+from coursefuzz.domain.models import ProgramVariant
 from coursefuzz.domain.models import TestCase as CFTestCase
 
 INCREMENT = "def solve(value):\n    return value + 1\n"
+
+
+def _program(source: str = INCREMENT) -> ProgramVariant:
+    return ProgramVariant(id="candidate", title="candidate", misconception="none", source=source)
 
 
 @dataclass
@@ -187,6 +192,20 @@ def test_infrastructure_failure_is_a_runtime_error() -> None:
     assert "Docker daemon" in (result.error or "")
 
 
+def test_run_suite_adapts_execute_for_the_engine_interface() -> None:
+    executor = _FakeExecutor(result=CommandResult(0, _completed_stdout(passed=1, failed=0), ""))
+    runner = DockerIsolatedRunner(executor=executor)
+    tests = (CFTestCase(inputs=(1,), expected=2, label="probe", source="deterministic"),)
+
+    suite = runner.run_suite(_program(), "solve", tests)
+
+    # The AssessmentEngine drives execution through run_suite and reads outputs[i]["actual"].
+    assert suite.all_passed
+    assert suite.passed == 1
+    assert suite.failed == 0
+    assert suite.outputs[0]["actual"] == 2
+
+
 def _docker_image_ready() -> bool:
     try:
         info = subprocess.run(
@@ -242,3 +261,22 @@ def test_no_network_flag_actually_denies_network() -> None:
 
     assert completed.returncode != 0  # the connection could not be established
     assert "unreachable" in completed.stderr.lower() or "network" in completed.stderr.lower()
+
+
+@pytest.mark.skipif(
+    not _docker_image_ready(),
+    reason="requires a running Docker daemon and a built coursefuzz:local image",
+)
+def test_run_suite_executes_in_a_real_container() -> None:
+    """The engine-facing run_suite runs correctly through a real container, so the isolated
+    runner is a drop-in execution backend for AssessmentEngine.
+    """
+
+    runner = DockerIsolatedRunner()
+    tests = (CFTestCase(inputs=(1,), expected=2, label="probe", source="deterministic"),)
+
+    suite = runner.run_suite(_program(), "solve", tests)
+
+    assert suite.all_passed
+    assert suite.passed == 1
+    assert suite.failed == 0

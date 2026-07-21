@@ -19,11 +19,11 @@ import hashlib
 import json
 from abc import ABC, abstractmethod
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from coursefuzz.domain.models import JsonAtom, TestCase
+from coursefuzz.domain.models import JsonAtom, ProgramVariant, SuiteExecution, TestCase
 
 EXECUTION_CONTRACT_VERSION = 1
 
@@ -165,3 +165,49 @@ class ExecutionGateway(ABC):
     @abstractmethod
     def execute(self, request: ExecutionRequest) -> ExecutionResult:
         raise NotImplementedError
+
+    def run_suite(
+        self,
+        program: ProgramVariant,
+        entrypoint: str,
+        tests: tuple[TestCase, ...] | list[TestCase],
+        timeout_seconds: float | None = None,
+    ) -> SuiteExecution:
+        """Engine-facing adapter over ``execute`` so any gateway is a drop-in execution backend.
+
+        ``LocalRestrictedRunner`` overrides this with a byte-identical direct path; container
+        runners inherit this adaptation unchanged. The output dicts match the legacy shape the
+        engine reads (``outputs[i]["actual"]``).
+        """
+
+        if timeout_seconds:
+            wall_seconds = min(timeout_seconds, 60.0)
+        else:
+            wall_seconds = DEFAULT_LIMITS.wall_seconds
+        request = ExecutionRequest.build(
+            program_id=program.id,
+            source=program.source,
+            entrypoint=entrypoint,
+            tests=tuple(tests),
+            limits=DEFAULT_LIMITS.model_copy(update={"wall_seconds": max(wall_seconds, 0.01)}),
+        )
+        result = self.execute(request)
+        outputs: list[dict[str, Any]] = []
+        for case in result.outputs:
+            entry: dict[str, Any] = {
+                "inputs": list(case.inputs),
+                "expected": case.expected,
+                "actual": case.actual,
+                "passed": case.passed,
+            }
+            if case.error is not None:
+                entry["error"] = case.error
+            outputs.append(entry)
+        return SuiteExecution(
+            program_id=program.id,
+            passed=result.passed,
+            failed=result.failed,
+            timed_out=result.outcome is ExecutionOutcome.TIMED_OUT,
+            error=result.error,
+            outputs=outputs,
+        )
