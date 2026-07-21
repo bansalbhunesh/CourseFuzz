@@ -189,6 +189,63 @@ def test_github_destination_fails_closed_when_read_back_bytes_are_tampered() -> 
         adapter.apply(prepared)
 
 
+def test_github_destination_is_idempotent_when_branch_and_pr_already_exist() -> None:
+    """A retried apply (branch + draft PR already present, bytes already correct) must converge to
+    the same verified receipt without rewriting the file or opening a duplicate pull request.
+    """
+
+    assignment = TRIANGLE_ASSIGNMENT.model_copy(
+        update={
+            "destination": GitHubPullRequestDestination(
+                repository="course-owner/autograder",
+                base_branch="main",
+                test_directory="tests/coursefuzz",
+            )
+        }
+    )
+    unbound = AssessmentEngine(
+        SubprocessPythonSandbox(), DeterministicHypothesisProvider()
+    ).analyze(assignment).candidate
+    assert unbound is not None
+    correct_content = base64.b64encode(unbound.pytest_source.encode()).decode()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if request.method == "GET" and "/git/ref/heads/" in path:
+            return httpx.Response(200, json={"object": {"sha": "a" * 40}})
+        if request.method == "POST" and path.endswith("/git/refs"):
+            return httpx.Response(422, json={"message": "Reference already exists"})
+        if request.method == "GET" and "/contents/" in path:
+            # The file is already present with exactly the approved bytes.
+            return httpx.Response(200, json={"sha": "blob-sha", "content": correct_content})
+        if request.method == "PUT" and "/contents/" in path:
+            raise AssertionError("must not rewrite bytes that already match the approved payload")
+        if request.method == "POST" and path.endswith("/pulls"):
+            return httpx.Response(422, json={"message": "A pull request already exists"})
+        if request.method == "GET" and path.endswith("/pulls"):
+            return httpx.Response(
+                200,
+                json=[{"number": 42, "html_url": "https://github.test/x/pull/42"}],
+            )
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    client = httpx.Client(
+        base_url="https://api.github.test",
+        transport=httpx.MockTransport(handler),
+    )
+    adapter = GitHubDestinationAdapter(
+        client=client,
+        allowed_repositories={"course-owner/autograder"},
+    )
+
+    prepared = adapter.prepare("run_retry", unbound)
+    applied = adapter.apply(prepared)
+
+    assert applied.receipt.read_back_verified is True
+    assert applied.receipt.pull_request_number == 42
+    assert applied.receipt.commit_sha is None  # no rewrite occurred
+
+
 def test_local_artifact_write_cannot_escape_the_run_directory(tmp_path: Path) -> None:
     """Defense in depth: even if a patch target carries a traversing path, the local writer must
     refuse it before creating or writing any file outside the bounded run directory.
