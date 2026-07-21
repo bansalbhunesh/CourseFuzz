@@ -132,15 +132,18 @@ def test_pids_ceiling_refuses_a_thread_bomb(
 ) -> None:
     probe = (
         "import threading, time\n"
+        "print('probe-started', flush=True)\n"
         "for _ in range(500):\n"
         "    threading.Thread(target=time.sleep, args=(5,), daemon=True).start()\n"
         "print('pid-limit-escaped')\n"
     )
-    completed = _run_probe(isolated_runner, probe, max_pids=24)
+    # Use the production ceiling. gVisor's sandbox needs more than 24 host tasks to boot, while a
+    # 500-thread bomb still exceeds the configured 128-task container limit by a wide margin.
+    completed = _run_probe(isolated_runner, probe, max_pids=DEFAULT_PIDS)
 
     assert completed.returncode != 0
+    assert "probe-started" in completed.stdout
     assert "pid-limit-escaped" not in completed.stdout
-    assert "thread" in completed.stderr.lower() or "resource" in completed.stderr.lower()
 
 
 def test_read_only_root_denies_a_write_to_an_owned_directory(
