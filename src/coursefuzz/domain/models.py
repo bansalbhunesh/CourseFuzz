@@ -29,8 +29,10 @@ class RunStatus(StrEnum):
     APPROVAL_REQUIRED = "approval_required"
     APPROVED = "approved"
     APPLYING = "applying"
+    EXTERNAL_CI_PENDING = "external_ci_pending"
     VERIFIED = "verified"
     NO_ACTION_REQUIRED = "no_action_required"
+    EXTERNAL_CI_FAILED = "external_ci_failed"
     FAILED = "failed"
 
 
@@ -207,6 +209,9 @@ class AttackHypothesis(BaseModel):
     rationale: str
     misconception: str
     provider: Literal["gpt-5.6", "deterministic-fallback"]
+    # Which candidate generator produced this input, when a scheduler composes several. Optional so
+    # the single-provider path and existing serialized runs are unchanged.
+    generator: str | None = None
 
 
 class HypothesisVerdict(BaseModel):
@@ -226,6 +231,27 @@ class MutationMetrics(BaseModel):
     accepted_solution_pass_rate: float
 
 
+class OracleDecision(BaseModel):
+    """How the expected output for one input was established (or why the oracle abstained).
+
+    Makes the truth source auditable: a resolved decision records which independent sources agreed
+    and how; an abstention records why. Bound into the candidate so approval covers provenance.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    expected: JsonAtom | None = None
+    decision: Literal["resolved", "abstained"]
+    provenance: str
+    evidence_sources: tuple[str, ...] = ()
+    quorum: int = 0
+    abstention_reason: str | None = None
+
+    @property
+    def resolved(self) -> bool:
+        return self.decision == "resolved"
+
+
 class CandidatePatch(BaseModel):
     id: str
     test: TestCase
@@ -234,6 +260,7 @@ class CandidatePatch(BaseModel):
     target_mutants: tuple[str, ...]
     payload_sha256: str
     pytest_source: str
+    oracle: OracleDecision | None = None
     target: PatchTarget = Field(
         default_factory=lambda: PatchTarget(
             kind="local_artifact",
@@ -263,6 +290,13 @@ class ActionReceipt(BaseModel):
     base_commit_sha: str | None = None
     commit_sha: str | None = None
     pull_request_number: int | None = None
+    # External (target-repository) CI read-back. A GitHub action is only fully verified once byte
+    # read-back AND the destination's own CI conclude. external_ci_verified stays False until then.
+    external_ci_started_at: datetime | None = None
+    external_ci_url: str | None = None
+    external_ci_conclusion: str | None = None
+    external_ci_completed_at: datetime | None = None
+    external_ci_verified: bool = False
 
 
 class AnalysisResult(BaseModel):
@@ -316,3 +350,37 @@ class ApprovalReceipt(BaseModel):
 
 class ApplyRequest(BaseModel):
     approval_token: str
+
+
+class EvidenceContent(BaseModel):
+    """The hashed body of an evidence bundle: everything a third party needs to re-verify a run.
+
+    Deterministically serialized so ``EvidenceBundle.bundle_sha256`` can be recomputed offline and
+    compared byte-for-byte. Excludes envelope metadata (generation time, the hash itself) so the
+    digest depends only on the evidence, not on when the bundle was produced.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    run: RunView
+    assignment_snapshot_sha256: str | None = None
+    oracle_evidence: dict[str, Any] | None = None
+    artifact_sha256: str | None = None
+    audit_events: tuple[AuditEvent, ...] = ()
+
+
+class EvidenceBundle(BaseModel):
+    """A self-contained, independently re-hashable record of one run's evidence.
+
+    A judge downloads this, recomputes SHA-256 over the canonical JSON of ``content`` (sorted keys,
+    compact separators), and confirms it equals ``bundle_sha256`` — proving the assignment snapshot,
+    oracle provenance, approval, destination read-back receipt, and ordered audit trail were not
+    altered after the fact.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    bundle_version: Literal["coursefuzz-evidence-v1"] = "coursefuzz-evidence-v1"
+    generated_at: datetime
+    bundle_sha256: str
+    content: EvidenceContent

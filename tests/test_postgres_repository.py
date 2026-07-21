@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -71,7 +73,24 @@ def test_postgres_repository_preserves_tenant_workflow_and_artifact(
     approval_token, _ = repository.approve(run.id, "a" * 64)
     assert repository.consume_approval(run.id, "wrong", "a" * 64) is False
     assert repository.consume_approval(run.id, approval_token, "a" * 64) is True
-    assert repository.consume_approval(run.id, approval_token, "a" * 64) is True
+    assert repository.consume_approval(run.id, approval_token, "a" * 64) is False
+
+    replacement_token, _ = repository.approve(run.id, "a" * 64)
+    approved = run.model_copy(update={"status": RunStatus.APPROVED})
+    repository.save(approved)
+    applying = approved.model_copy(update={"status": RunStatus.APPLYING})
+    barrier = threading.Barrier(6)
+
+    def race_for_claim(_: int) -> bool:
+        barrier.wait()
+        return repository.claim_approved_apply(applying, replacement_token, "a" * 64)
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        claims = list(pool.map(race_for_claim, range(6)))
+
+    assert claims.count(True) == 1
+    assert claims.count(False) == 5
+    assert repository.get(run.id, "tenant-a").status == RunStatus.APPLYING
 
     artifact_path = tmp_path / "test_verified.py"
     artifact_bytes = b"def test_verified():\n    assert True\n"

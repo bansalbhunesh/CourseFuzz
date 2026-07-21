@@ -66,6 +66,85 @@ def test_engine_finds_minimal_verified_counterexample(
     assert result.evidence["gpt_decides_correctness"] is False
 
 
+def test_directed_scan_prefers_maximum_coverage_over_a_smaller_input() -> None:
+    """The counterexample is chosen to discriminate the MOST survivors, not to be smallest.
+
+    Distilled from the maximum-pair benchmark case, where the old "minimize one winner toward its
+    smallest input" path shed coverage. Two mutants survive the instructor suite:
+      - ``returns-left`` is wrong whenever ``right > left``.
+      - ``zero-fallback`` returns 0 when ``left < right`` -> wrong only if the true max is nonzero.
+    The smallest divergent input ``(-1, 0)`` kills only ``returns-left`` (the max there is 0, which
+    ``zero-fallback`` returns correctly). A slightly larger input ``(0, 1)`` kills both. A directed
+    scan must pick ``(0, 1)`` and catch both wrong programs with a single regression test.
+    """
+
+    reference = ProgramVariant(
+        id="ref-max",
+        title="Maximum of a pair",
+        misconception="none",
+        source=(
+            "def maximum_pair(left, right):\n"
+            "    if left >= right:\n"
+            "        return left\n"
+            "    return right\n"
+        ),
+    )
+    control = ProgramVariant(
+        id="control-max",
+        title="Maximum of a pair, independently authored",
+        misconception="none",
+        source=(
+            "def maximum_pair(left, right):\n"
+            "    if right > left:\n"
+            "        return right\n"
+            "    return left\n"
+        ),
+    )
+    assignment = AssignmentSpec(
+        id="max-pair-coverage",
+        title="Maximum of a pair",
+        summary="Return the larger of two bounded integers, coverage-preservation probe.",
+        entrypoint="maximum_pair",
+        input_names=("left", "right"),
+        domain_min=-1,
+        domain_max=1,
+        reference=reference,
+        accepted_solutions=(reference, control),
+        mutants=(
+            ProgramVariant(
+                id="returns-left",
+                title="Returns the first input",
+                misconception="Assumes the first input is larger.",
+                source="def maximum_pair(left, right):\n    return left\n",
+            ),
+            ProgramVariant(
+                id="zero-fallback",
+                title="Uses zero when the second input is larger",
+                misconception="Falls back to zero instead of the larger value.",
+                source=(
+                    "def maximum_pair(left, right):\n"
+                    "    if left >= right:\n"
+                    "        return left\n"
+                    "    return 0\n"
+                ),
+            ),
+        ),
+        instructor_tests=(
+            DomainTestCase(inputs=(1, -1), expected=1, label="left larger", source="instructor"),
+        ),
+    )
+    engine = AssessmentEngine(SubprocessPythonSandbox(), DeterministicHypothesisProvider())
+
+    result = engine.analyze(assignment)
+
+    assert result.before.surviving_mutants == 2
+    assert result.candidate is not None
+    # A single directed test catches BOTH survivors; a smallness-minimized input would miss one.
+    assert result.candidate.test.inputs == (0, 1)
+    assert set(result.candidate.target_mutants) == {"returns-left", "zero-fallback"}
+    assert result.projected_after.mutation_score == 100.0
+
+
 def test_hypotheses_that_do_not_diverge_are_rejected() -> None:
     engine = AssessmentEngine(SubprocessPythonSandbox(), DeterministicHypothesisProvider())
 

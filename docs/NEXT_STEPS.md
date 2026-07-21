@@ -27,7 +27,44 @@ The next work must close three honest gaps:
 1. The restricted subprocess is a demo boundary, not hostile-code isolation.
 2. Synthetic benchmark v1 is not evidence of real-course generalization.
 3. Deterministic CourseFuzz ties an equal-budget random-8 baseline, so search superiority is not
-   established.
+   established. The tie is now **measured and understood to be structural** on this corpus (see
+   below): the counterexample selector is coverage-directed, but no search can be shown to beat
+   random until a corpus with larger input domains exists.
+
+### Gap 3, measured: why the tie is structural (2026-07-22)
+
+We instrumented the frozen synthetic corpus by executing every mutant and the reference across each
+assignment's whole bounded domain and reasoning about kill-sets directly (`scratchpad` probe, method
+committed as the directed selector). Aggregate mutation score by strategy:
+
+| Strategy | Mutation score | Notes |
+| --- | --- | --- |
+| Instructor tests only | 53.3% | starting point |
+| Single added test (product) | **93.3% → 95.0%** | one oracle-backed regression test per assignment |
+| Feedback-directed minimal *suite* | 100% | greedy set-cover, ≤2 tests per assignment |
+| Random-8 set-cover | 100% | 8 blind samples, greedy set-cover |
+
+Reading: a feedback-directed suite reaches every wrong program, **but so does an equal-budget
+random-8 set-cover**. The reason is the corpus itself — every domain is ≤27 points, so eight blind
+samples cannot miss the discriminating inputs. On saturated domains a directed search has nothing to
+separate it from random. **This is a corpus limitation, not a search result**, and Milestone 3's
+larger, non-vendored real corpus (with input domains a blind sweep cannot cover) is the only honest
+way to establish or refute superiority. Do not report the current 0.0-point advantage as either a
+win or a defeat for the algorithm; it is a measurement the corpus cannot resolve.
+
+What shipped from this finding (commit "directed scan", one-test apply contract unchanged): the
+selector no longer verifies a blind winner and then minimizes it toward a single target — which shed
+coverage — but scans the bounded domain for the oracle-resolved input that discriminates the *most*
+surviving mutants, tie-broken toward the smallest input. That lifted single-test mutation score from
+93.3% to 95.0% (the entire gap was one case where the smallest divergent input caught two of three
+survivors and a slightly larger input caught all three). It is the exact mechanism that would
+separate from random once domains are large enough to matter; it changes nothing about the honest
+present-day claim.
+
+Pitch line, honest form: *"CourseFuzz selects the single input that discriminates the most wrong
+programs at once, each expected output established by independent oracles. On assignments small
+enough for a random sweep to saturate, that advantage is invisible; it emerges as the input space
+grows, which is what the real-corpus evaluation is built to measure."*
 
 ## How the two repositories connect
 
@@ -363,7 +400,11 @@ context and remaining execution budget and returns candidates plus provenance. S
 - property-based strategies derived from typed input schemas;
 - model-proposed hypotheses;
 - survivor-disagreement search that selects inputs predicted to partition the remaining wrong
-  programs most strongly;
+  programs most strongly. A first, in-product, **execution-backed** form of this already ships in
+  the engine's counterexample selector (it picks the domain input that actually partitions the most
+  surviving mutants, not a predicted one — see "Gap 3, measured"). What remains for this milestone is
+  to promote it from a final-selection step to a budgeted *generator* under the shared execution
+  ledger, and to prove it on the real corpus rather than the saturated synthetic one;
 - coverage-guided generation only after coverage collection is isolated from oracle scoring.
 
 The scheduler should deduplicate candidates globally, record which generator produced each one,

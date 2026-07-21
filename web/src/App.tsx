@@ -101,6 +101,15 @@ type Analysis = {
   evidence: Record<string, unknown>;
 };
 
+type OracleEvidence = {
+  decision?: "resolved" | "abstained" | "no_counterexample";
+  provenance?: string;
+  sources?: string[];
+  quorum?: number;
+  abstention_reasons?: string[];
+  controls?: number;
+};
+
 type Run = {
   id: string;
   assignment_id: string;
@@ -172,6 +181,11 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
     throw new ApiError(body.detail ?? "The request failed.", response.status);
   }
   return response.json() as Promise<T>;
+}
+
+function oracleEvidenceOf(analysis: Analysis | null | undefined): OracleEvidence | null {
+  const raw = analysis?.evidence?.oracle_evidence;
+  return raw && typeof raw === "object" ? (raw as OracleEvidence) : null;
 }
 
 function pct(value: number) {
@@ -460,6 +474,8 @@ export function App() {
     return <main className="center-state" aria-live="polite">Loading the assignment workspace…</main>;
   }
 
+  const oracle = oracleEvidenceOf(run?.analysis);
+
   return (
     <main className="app-shell">
       <header className="masthead">
@@ -601,6 +617,13 @@ export function App() {
                     <div><small>REFERENCE</small><strong>{String(run.analysis.candidate.test.expected)}</strong></div>
                     <div className="wrong-output"><small>WRONG PROGRAM</small><strong>{String(run.analysis.candidate.observed_actual ?? "not captured")}</strong></div>
                   </div>
+                  {oracle?.decision === "resolved" && (
+                    <p className="oracle-provenance">
+                      <small>ORACLE</small> Expected output established by {oracle.provenance}
+                      {typeof oracle.quorum === "number" ? ` · quorum ${oracle.quorum}` : ""}
+                      {oracle.sources?.length ? ` · ${oracle.sources.join(", ")}` : ""}
+                    </p>
+                  )}
                   <p>Execution reproduced the disagreement after minimizing the generated hypothesis.</p>
                   <footer>
                     <span>Execution-backed</span>
@@ -651,7 +674,17 @@ export function App() {
                 </button>
               </>
             )}
-            {run?.status === "no_action_required" && (
+            {run?.status === "no_action_required" && oracle?.decision === "abstained" && (
+              <div className="verified-result abstained">
+                <span className="verified-check" aria-hidden="true">!</span>
+                <h2>CourseFuzz abstained.</h2>
+                <p>A program survived the instructor suite, but the independent oracle could not establish the correct output on the disputed input, so no accusation was made:</p>
+                <ul className="abstention-reasons">
+                  {(oracle.abstention_reasons ?? []).map((reason) => <li key={reason}>{reason}</li>)}
+                </ul>
+              </div>
+            )}
+            {run?.status === "no_action_required" && oracle?.decision !== "abstained" && (
               <div className="verified-result">
                 <span className="verified-check" aria-hidden="true">✓</span>
                 <h2>No write proposed.</h2>
@@ -702,6 +735,7 @@ export function App() {
             <div className="trace-title">
               <div><span className="section-number">AUDIT TRAIL</span><h2 id="trace-heading">Run evidence</h2></div>
               {run && <span className="live-indicator"><i aria-hidden="true" />{["queued", "analyzing", "applying"].includes(run.status) ? "live" : "persisted"}</span>}
+              {run && <a className="evidence-download" href={`/api/runs/${run.id}/evidence`}>Evidence bundle <span aria-hidden="true">↓</span></a>}
             </div>
             {events.length === 0 ? (
               <p className="empty-trace">The signed sequence of analysis, approval, write, and verification will appear here.</p>

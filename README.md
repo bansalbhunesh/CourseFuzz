@@ -28,10 +28,13 @@ entire misconception corpus.
 - After one approved test: **8/8 killed (100%)**.
 - Safety control: **2/2 independently authored accepted solutions still pass (100%)**.
 - Frozen synthetic v1: **10 assignments / 60 wrong programs / 20 accepted controls**.
-- Aggregate mutation score: **53.3% -> 93.3% (+40.0 points)** with **0% false kills**.
-- Honest baseline: an equal-budget frozen random-8 search also reaches **93.3%** on this small
+- Aggregate mutation score: **53.3% -> 95.0% (+41.7 points)** with **0% false kills**. Each single
+  repair is chosen to discriminate the most wrong programs at once (a feedback-directed selection),
+  not merely the smallest counterexample.
+- Honest baseline: an equal-budget frozen random-8 search also reaches **95.0%** on this small
   corpus, so the result proves the verified repair loop—not search superiority or real-course
-  generalization.
+  generalization. On domains this small a random sweep saturates, so the directed selector cannot be
+  shown to beat it here; see `docs/NEXT_STEPS.md` ("Gap 3, measured").
 
 ## Quickstart
 

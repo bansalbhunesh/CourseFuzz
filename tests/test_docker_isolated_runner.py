@@ -141,6 +141,7 @@ def test_request_limits_flow_into_container_ceilings() -> None:
 
     assert _index_pair(argv, "--memory") == f"{128 * 1024 * 1024}b"
     assert _index_pair(argv, "--pids-limit") == "32"
+    assert _index_pair(argv, "--ulimit") == "nproc=32:32"
     # The subprocess deadline is the guest wall budget plus the container startup allowance.
     assert executor.calls[0].timeout == pytest.approx(2.0 + runner.startup_grace_seconds)
 
