@@ -115,6 +115,35 @@ def test_request_digest_is_deterministic_and_source_sensitive() -> None:
     assert a.source_sha256 != c.source_sha256
 
 
+def test_output_ceiling_is_enforced(gateway: ExecutionGateway) -> None:
+    tiny = ExecutionLimits(wall_seconds=1.5, output_bytes=5, source_bytes=16_384)
+    request = _request(INCREMENT, (_case((1,), 2),), limits=tiny)
+
+    result = gateway.execute(request)
+
+    assert result.outcome is ExecutionOutcome.OUTPUT_LIMIT
+    assert result.passed == 0
+    assert result.failed == 1
+    assert result.error is not None
+    assert result.receipt.termination_reason == "output-limit-exceeded"
+
+
+def test_syntactically_broken_source_is_a_runtime_error_not_a_rejection(
+    gateway: ExecutionGateway,
+) -> None:
+    # A SyntaxError is not a restricted-language contract violation, so it must surface as a
+    # runtime error rather than a REJECTED verdict; the two are kept distinct on purpose.
+    request = _request("def solve(value)\n    return value\n", (_case((1,), 1),))
+
+    result = gateway.execute(request)
+
+    assert result.outcome is ExecutionOutcome.RUNTIME_ERROR
+    assert result.passed == 0
+    assert result.error is not None
+    assert "SyntaxError" in result.error
+    assert result.receipt.termination_reason == "runner-error"
+
+
 def test_contract_versions_are_pinned(gateway: ExecutionGateway) -> None:
     request = _request(INCREMENT, (_case((1,), 2),))
 
