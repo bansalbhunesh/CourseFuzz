@@ -6,6 +6,7 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 from urllib.parse import quote
 
 import httpx
@@ -15,12 +16,23 @@ from coursefuzz.domain.models import ActionReceipt, CandidatePatch
 
 GITHUB_API_VERSION = "2026-03-10"
 RETRYABLE_STATUSES = {429, 502, 503, 504}
+# GitHub check-run conclusions that count as the target suite passing.
+PASSING_CONCLUSIONS = {"success", "neutral", "skipped"}
 
 
 @dataclass(frozen=True)
 class AppliedDestination:
     receipt: ActionReceipt
     local_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class CheckRunStatus:
+    """Aggregate result of a commit's GitHub check-runs."""
+
+    state: Literal["pending", "success", "failure"]
+    conclusion: str | None = None
+    url: str | None = None
 
 
 class GitHubDestinationAdapter:
@@ -193,6 +205,32 @@ class GitHubDestinationAdapter:
                 pull_request_number=int(pull_data["number"]),
             )
         )
+
+    def check_runs(self, repository: str, commit_sha: str) -> CheckRunStatus:
+        """Read the target repository's CI for one commit and aggregate its check-runs.
+
+        Returns ``pending`` while any check is unfinished or none have appeared yet, ``success``
+        when every completed check passes, and ``failure`` on the first non-passing conclusion.
+        This does not merge or mutate anything — it only reads the destination's own CI conclusion.
+        """
+
+        self._require_allowed_repository(repository)
+        encoded_sha = quote(commit_sha, safe="")
+        response = self._request(
+            "GET",
+            f"/repos/{repository}/commits/{encoded_sha}/check-runs",
+        )
+        runs = response.json().get("check_runs") or []
+        if not runs:
+            return CheckRunStatus(state="pending")
+        url = next((run.get("html_url") for run in runs if run.get("html_url")), None)
+        if any(run.get("status") != "completed" for run in runs):
+            return CheckRunStatus(state="pending", url=url)
+        conclusions = [str(run.get("conclusion")) for run in runs]
+        if all(conclusion in PASSING_CONCLUSIONS for conclusion in conclusions):
+            return CheckRunStatus(state="success", conclusion="success", url=url)
+        failing = next(c for c in conclusions if c not in PASSING_CONCLUSIONS)
+        return CheckRunStatus(state="failure", conclusion=failing, url=url)
 
     def _write_payload(self, candidate: CandidatePatch, existing_sha: str | None = None) -> dict:
         target = candidate.target

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
+from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -8,6 +12,8 @@ from coursefuzz.domain.engine import AssessmentEngine
 from coursefuzz.domain.models import (
     ApprovalReceipt,
     AssignmentSpec,
+    EvidenceBundle,
+    EvidenceContent,
     GitHubPullRequestDestination,
     RunStatus,
     RunView,
@@ -113,6 +119,10 @@ class RunService:
                     "Interrupted analysis returned to the durable queue.",
                 )
                 run = queued
+            if run.status == RunStatus.EXTERNAL_CI_PENDING:
+                self.poll_external_ci(run.id, tenant_id)
+                recovered += 1
+                continue
             if run.status == RunStatus.QUEUED:
                 self.analyze_run(run.id, tenant_id)
                 recovered += 1
@@ -156,6 +166,8 @@ class RunService:
                         "inputs": list(analysis.candidate.test.inputs),
                         "expected": analysis.candidate.test.expected,
                         "payload_sha256": analysis.candidate.payload_sha256,
+                        # How the expected output was established: provenance, sources, quorum.
+                        "oracle": analysis.evidence.get("oracle_evidence"),
                     },
                 )
                 next_status = RunStatus.APPROVAL_REQUIRED
@@ -165,7 +177,11 @@ class RunService:
                     "analysis.no_finding",
                     "verify",
                     "Execution found no surviving counterexample that requires a test change.",
-                    {"survivors": list(analysis.survivors_before)},
+                    {
+                        "survivors": list(analysis.survivors_before),
+                        # Records why the oracle abstained, so "no finding" is never a black box.
+                        "oracle": analysis.evidence.get("oracle_evidence"),
+                    },
                 )
                 next_status = RunStatus.NO_ACTION_REQUIRED
             run = run.model_copy(
@@ -252,11 +268,13 @@ class RunService:
         if run.status != RunStatus.APPROVED or not run.analysis or not run.analysis.candidate:
             raise ValueError("Run does not have an approved patch")
         candidate = run.analysis.candidate
-        if not self.repository.consume_approval(run.id, approval_token, candidate.payload_sha256):
-            raise ValueError("Approval token is invalid for this exact payload")
-
         applying = run.model_copy(update={"status": RunStatus.APPLYING, "updated_at": utc_now()})
-        self.repository.save(applying)
+        if not self.repository.claim_approved_apply(
+            applying,
+            approval_token,
+            candidate.payload_sha256,
+        ):
+            raise ValueError("Approval token is invalid for this exact payload")
         self.repository.append_event(
             run.id,
             "patch.applying",
@@ -281,7 +299,7 @@ class RunService:
             retryable = applying.model_copy(
                 update={
                     "status": RunStatus.APPROVED,
-                    "error": f"{type(exc).__name__}: {exc}",
+                    "error": f"{type(exc).__name__}: {exc}; reauthorize the exact payload",
                     "updated_at": utc_now(),
                 }
             )
@@ -290,15 +308,42 @@ class RunService:
                 run.id,
                 "patch.failed",
                 "apply",
-                "The write or read-back failed; the approved action remains retryable.",
+                "The write or read-back failed; the exact payload must be reauthorized.",
                 {"error": retryable.error},
             )
             raise
+        receipt = applied.receipt
+        # A GitHub write is only half-verified here: bytes match and our own rerun passed, but the
+        # target repository's CI has not concluded. Hold at external_ci_pending until it does.
+        if receipt.kind == "github_pull_request" and receipt.commit_sha:
+            receipt = receipt.model_copy(update={"external_ci_started_at": utc_now()})
+            pending = applying.model_copy(
+                update={
+                    "status": RunStatus.EXTERNAL_CI_PENDING,
+                    "artifact_sha256": receipt.artifact_sha256,
+                    "action_receipt": receipt,
+                    "updated_at": utc_now(),
+                }
+            )
+            self.repository.save(pending)
+            self.repository.append_event(
+                run.id,
+                "external_ci.pending",
+                "external-ci",
+                "Draft PR written and byte read-back matched; awaiting the target repository CI.",
+                {
+                    "external_url": receipt.external_url,
+                    "commit_sha": receipt.commit_sha,
+                    "mutation_score": metrics.mutation_score,
+                },
+            )
+            return pending
+
         verified = applying.model_copy(
             update={
                 "status": RunStatus.VERIFIED,
-                "artifact_sha256": applied.receipt.artifact_sha256,
-                "action_receipt": applied.receipt,
+                "artifact_sha256": receipt.artifact_sha256,
+                "action_receipt": receipt,
                 "updated_at": utc_now(),
             }
         )
@@ -309,20 +354,139 @@ class RunService:
             "read-back",
             "Destination read-back matched and the repaired suite killed every viable mutant.",
             {
-                "artifact_sha256": applied.receipt.artifact_sha256,
+                "artifact_sha256": receipt.artifact_sha256,
                 "mutation_score": metrics.mutation_score,
                 "accepted_solution_pass_rate": metrics.accepted_solution_pass_rate,
-                "destination_kind": applied.receipt.kind,
-                "external_url": applied.receipt.external_url,
+                "destination_kind": receipt.kind,
+                "external_url": receipt.external_url,
             },
         )
         return verified
+
+    def poll_external_ci(
+        self,
+        run_id: str,
+        tenant_id: str = LOCAL_TENANT,
+        *,
+        deadline_seconds: float = 600.0,
+        now: Callable[[], datetime] = utc_now,
+    ) -> RunView:
+        """Advance an external_ci_pending run by reading the target repository's CI conclusion.
+
+        Idempotent and resumable: it reads GitHub check-runs for the written commit and moves the
+        run to verified only when byte read-back (already done) and target CI both succeed; to
+        external_ci_failed on a failing conclusion or once the deadline passes; otherwise it leaves
+        the run pending. It never merges or mutates the pull request.
+        """
+
+        run = self.require_run(run_id, tenant_id)
+        receipt = run.action_receipt
+        if (
+            run.status != RunStatus.EXTERNAL_CI_PENDING
+            or receipt is None
+            or not receipt.repository
+            or not receipt.commit_sha
+        ):
+            return run
+
+        status = self.destinations.github.check_runs(receipt.repository, receipt.commit_sha)
+        moment = now()
+        started = receipt.external_ci_started_at or moment
+        elapsed = (moment - started).total_seconds()
+
+        if status.state == "success":
+            finalized = receipt.model_copy(
+                update={
+                    "external_ci_url": status.url,
+                    "external_ci_conclusion": "success",
+                    "external_ci_completed_at": moment,
+                    "external_ci_verified": True,
+                }
+            )
+            verified = run.model_copy(
+                update={
+                    "status": RunStatus.VERIFIED,
+                    "action_receipt": finalized,
+                    "updated_at": moment,
+                }
+            )
+            self.repository.save(verified)
+            self.repository.append_event(
+                run.id,
+                "external_ci.verified",
+                "external-ci",
+                "Target repository CI passed on the draft PR; the external action is verified.",
+                {"external_ci_url": status.url},
+            )
+            return verified
+
+        if status.state == "failure" or elapsed > deadline_seconds:
+            conclusion = status.conclusion if status.state == "failure" else "timed_out"
+            finalized = receipt.model_copy(
+                update={
+                    "external_ci_url": status.url,
+                    "external_ci_conclusion": conclusion,
+                    "external_ci_completed_at": moment,
+                }
+            )
+            failed = run.model_copy(
+                update={
+                    "status": RunStatus.EXTERNAL_CI_FAILED,
+                    "action_receipt": finalized,
+                    "error": f"Target repository CI did not pass: {conclusion}",
+                    "updated_at": moment,
+                }
+            )
+            self.repository.save(failed)
+            self.repository.append_event(
+                run.id,
+                "external_ci.failed",
+                "external-ci",
+                "Target repository CI did not pass; the external action is not verified.",
+                {"external_ci_url": status.url, "conclusion": conclusion},
+            )
+            return failed
+
+        return run
 
     def require_run(self, run_id: str, tenant_id: str = LOCAL_TENANT) -> RunView:
         run = self.repository.get(run_id, tenant_id)
         if not run:
             raise KeyError(run_id)
         return run
+
+    def build_evidence_bundle(
+        self, run_id: str, tenant_id: str = LOCAL_TENANT
+    ) -> EvidenceBundle:
+        """Assemble a self-contained, independently re-hashable record of one run's evidence.
+
+        Tenant-scoped: ``require_run`` raises ``KeyError`` for a missing or foreign run. The bundle
+        hash covers only ``content`` (deterministic), so a judge can recompute it offline; the
+        generation timestamp is envelope metadata and is deliberately left out of the digest.
+        """
+        run = self.require_run(run_id, tenant_id)
+        events = tuple(self.repository.events_after(run_id, 0))
+        oracle_evidence = None
+        if run.analysis is not None:
+            raw = run.analysis.evidence.get("oracle_evidence")
+            oracle_evidence = raw if isinstance(raw, dict) else None
+        content = EvidenceContent(
+            run=run,
+            assignment_snapshot_sha256=run.assignment_snapshot_sha256,
+            oracle_evidence=oracle_evidence,
+            artifact_sha256=run.artifact_sha256,
+            audit_events=events,
+        )
+        digest = hashlib.sha256(
+            json.dumps(
+                content.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+        ).hexdigest()
+        return EvidenceBundle(
+            bundle_sha256=digest,
+            generated_at=utc_now(),
+            content=content,
+        )
 
     def _assignment_for_run(
         self,

@@ -21,14 +21,18 @@ For frozen synthetic benchmark v1:
 
 - 10 bounded assignments, 60 executable wrong programs, and 20 accepted controls;
 - instructor suites kill 32/60 wrong programs: **53.3% mutation score**;
-- one CourseFuzz repair per assignment kills 56/60: **93.3% (+40.0 points)**;
+- one CourseFuzz repair per assignment kills 57/60: **95.0% (+41.7 points)**, each repair chosen to
+  discriminate the most wrong programs at once;
 - all 20 accepted controls still pass: **0% false-kill rate**;
 - findings are produced for 10/10 assignments with no abstentions;
-- a frozen equal-budget random-8 provider also reaches **93.3%**.
+- a frozen equal-budget random-8 provider also reaches **95.0%**.
 
-The random tie is a material limitation. This benchmark supports the claim that the complete
-verification-and-repair loop improves these instructor suites without rejecting accepted controls.
-It does not support a claim that deterministic CourseFuzz search beats random input generation.
+The random tie is a material limitation, and it is now measured to be structural: every domain in v1
+is small enough (≤27 points) that eight blind samples saturate the discriminating inputs, so no
+selector can be shown to beat random here (see `NEXT_STEPS.md`, "Gap 3, measured"). This benchmark
+supports the claim that the complete verification-and-repair loop improves these instructor suites
+without rejecting accepted controls. It does not support a claim that deterministic CourseFuzz search
+beats random input generation; establishing or refuting that needs the larger real corpus.
 
 Run and verify the frozen evidence:
 

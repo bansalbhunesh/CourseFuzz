@@ -39,6 +39,7 @@ TERMINAL_STREAM_STATES = {
     RunStatus.APPROVED,
     RunStatus.VERIFIED,
     RunStatus.NO_ACTION_REQUIRED,
+    RunStatus.EXTERNAL_CI_FAILED,
     RunStatus.FAILED,
 }
 
@@ -236,6 +237,18 @@ def build_router(
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    @router.post("/runs/{run_id}/external-ci", response_model=RunView)
+    def refresh_external_ci(
+        run_id: str,
+        principal: Principal = principal_dependency,
+    ) -> RunView:
+        # Advance an external_ci_pending run by reading the target CI once. A worker (or startup
+        # recovery) also does this automatically; this endpoint lets the app refresh on demand.
+        try:
+            return service.poll_external_ci(run_id, principal.tenant_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Run not found") from exc
+
     @router.get("/runs/{run_id}/artifact")
     def artifact(
         run_id: str,
@@ -255,6 +268,28 @@ def build_router(
                 "Content-Disposition": f'attachment; filename="{record.filename}"',
                 "ETag": f'"{record.sha256}"',
                 "X-Artifact-SHA256": record.sha256,
+            },
+        )
+
+    @router.get("/runs/{run_id}/evidence")
+    def evidence_bundle(
+        run_id: str,
+        principal: Principal = principal_dependency,
+    ) -> Response:
+        # A downloadable, independently re-hashable record of the run: assignment snapshot,
+        # oracle provenance, approval, destination read-back receipt, and the ordered audit trail.
+        try:
+            bundle = service.build_evidence_bundle(run_id, principal.tenant_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Run not found") from exc
+        return Response(
+            content=bundle.model_dump_json(indent=2),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="coursefuzz-evidence-{run_id}.json"'
+                ),
+                "X-Evidence-SHA256": bundle.bundle_sha256,
             },
         )
 

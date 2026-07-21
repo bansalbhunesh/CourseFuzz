@@ -21,11 +21,13 @@ from coursefuzz.domain.models import (
     HypothesisVerdict,
     JsonAtom,
     MutationMetrics,
+    OracleDecision,
     PatchTarget,
     ProgramVariant,
     SuiteExecution,
     TestCase,
 )
+from coursefuzz.domain.oracle import CompositeOracle
 
 
 def bind_candidate_payload(candidate: CandidatePatch) -> CandidatePatch:
@@ -46,10 +48,12 @@ class AssessmentEngine:
         sandbox: SubprocessPythonSandbox,
         hypotheses: HypothesisProvider,
         max_analysis_seconds: float = 30.0,
+        oracle: CompositeOracle | None = None,
     ) -> None:
         self.sandbox = sandbox
         self.hypotheses = hypotheses
         self.max_analysis_seconds = max_analysis_seconds
+        self.oracle = oracle or CompositeOracle()
 
     def analyze(self, assignment: AssignmentSpec) -> AnalysisResult:
         deadline = time.monotonic() + self.max_analysis_seconds
@@ -86,22 +90,28 @@ class AssessmentEngine:
                 evidence=self._evidence(assignment, verdicts, finding=False),
             )
 
-        winner = max(
-            verified,
-            key=lambda item: (
-                len(item.killed_mutants),
-                tuple(-value for value in item.hypothesis.inputs),
-            ),
-        )
-        target = self._program_by_id(survivors, winner.killed_mutants[0])
-        minimized_inputs = self._minimize(assignment, target, deadline)
-        expected = self._consensus_expected(assignment, minimized_inputs, deadline)
-        if expected is None:
+        # A provider hypothesis verified a real gap; now select the single input that discriminates
+        # the MOST surviving mutants, rather than minimizing one winner toward its smallest input
+        # (which discards coverage). This is feedback-directed, not blind: it reads survivor outputs
+        # across the bounded domain and maximizes kills, oracle-backed, tie-broken toward smallness.
+        directed = self._directed_counterexample(assignment, survivors, deadline)
+        if directed is None:
+            return AnalysisResult(
+                before=before,
+                projected_after=before,
+                survivors_before=tuple(item.id for item in survivors),
+                hypothesis_verdicts=verdicts,
+                evidence=self._evidence(assignment, verdicts, finding=False),
+            )
+        minimized_inputs, scanned_expected, scanned_kills = directed
+        decision = self._oracle_decision(assignment, minimized_inputs, deadline)
+        if decision.expected is None or decision.expected != scanned_expected:
             raise ValueError("Independent accepted solutions did not agree on the minimized input")
+        target = self._program_by_id(survivors, scanned_kills[0])
         minimized = TestCase(
             inputs=minimized_inputs,
-            expected=expected,
-            label=f"CourseFuzz regression: {winner.hypothesis.misconception}",
+            expected=decision.expected,
+            label=f"CourseFuzz regression: {target.misconception}",
             source="minimized",
         )
         killed_mutants: list[str] = []
@@ -128,6 +138,7 @@ class AssessmentEngine:
             observed_actual,
             target.title,
             assignment,
+            decision,
         )
 
         return AnalysisResult(
@@ -136,7 +147,7 @@ class AssessmentEngine:
             survivors_before=tuple(item.id for item in survivors),
             hypothesis_verdicts=verdicts,
             candidate=candidate,
-            evidence=self._evidence(assignment, verdicts, finding=True),
+            evidence=self._evidence(assignment, verdicts, finding=True, decision=decision),
         )
 
     def verify_applied_patch(
@@ -244,61 +255,94 @@ class AssessmentEngine:
             killed_mutants=tuple(killed),
         )
 
+    def _oracle_decision(
+        self,
+        assignment: AssignmentSpec,
+        inputs: tuple[int, ...],
+        deadline: float,
+    ) -> OracleDecision:
+        def probe(program: ProgramVariant) -> JsonAtom | None:
+            case = TestCase(
+                inputs=inputs, expected=None, label="oracle probe", source="deterministic"
+            )
+            execution = self._run_suite(program, assignment.entrypoint, (case,), deadline)
+            if execution.error or not execution.outputs:
+                return None
+            output = execution.outputs[0]["actual"]
+            return output if isinstance(output, (str, int, float, bool)) else None
+
+        return self.oracle.decide(assignment, inputs, probe)
+
     def _consensus_expected(
         self,
         assignment: AssignmentSpec,
         inputs: tuple[int, ...],
         deadline: float,
     ) -> JsonAtom | None:
-        probe = TestCase(
-            inputs=inputs,
-            expected=None,
-            label="oracle probe",
-            source="deterministic",
-        )
-        outputs: list[JsonAtom] = []
-        for solution in assignment.accepted_solutions:
-            execution = self._run_suite(
-                solution, assignment.entrypoint, (probe,), deadline
-            )
-            if execution.error or not execution.outputs:
-                return None
-            output = execution.outputs[0]["actual"]
-            if not isinstance(output, (str, int, float, bool)):
-                return None
-            outputs.append(output)
-        return outputs[0] if len(set(outputs)) == 1 else None
+        return self._oracle_decision(assignment, inputs, deadline).expected
 
-    def _minimize(
+    def _directed_counterexample(
         self,
         assignment: AssignmentSpec,
-        target: ProgramVariant,
+        survivors: tuple[ProgramVariant, ...],
         deadline: float,
-    ) -> tuple[int, ...]:
-        values = range(assignment.domain_min, assignment.domain_max + 1)
-        candidates = sorted(
-            itertools.product(values, repeat=len(assignment.input_names)),
+    ) -> tuple[tuple[int, ...], JsonAtom, tuple[str, ...]] | None:
+        """Pick the oracle-resolved input that discriminates the most surviving mutants.
+
+        Feedback-directed selection: read every survivor's output across the whole bounded domain
+        with one batched execution per program, then choose the input that kills the most survivors,
+        breaking ties toward the smallest, most legible input (so it is minimal within its coverage
+        class). This replaces "verify a blind winner, then minimize toward one target" — minimizing
+        for smallness can shed coverage a maximally-discriminating input would have kept. Returns
+        None only if no resolved input discriminates any survivor; the verified-hypothesis gate in
+        ``analyze`` already guarantees that cannot happen, so this is a fail-closed guard.
+        """
+        domain = sorted(
+            itertools.product(
+                range(assignment.domain_min, assignment.domain_max + 1),
+                repeat=len(assignment.input_names),
+            ),
             key=lambda item: (
                 sum(abs(value) for value in item),
                 max(abs(value) for value in item),
                 item,
             ),
         )
-        for inputs in candidates:
-            expected = self._consensus_expected(assignment, inputs, deadline)
-            if expected is None:
-                continue
-            test = TestCase(
-                inputs=inputs,
-                expected=expected,
-                label="minimization probe",
-                source="deterministic",
+        probe_tests = tuple(
+            TestCase(inputs=inputs, expected=None, label="coverage probe", source="deterministic")
+            for inputs in domain
+        )
+        probe_programs = (*assignment.accepted_solutions, *survivors)
+        executions = self._run_suite_batch(
+            probe_programs, assignment.entrypoint, probe_tests, deadline
+        )
+        outputs: dict[str, dict[tuple[int, ...], JsonAtom | None]] = {}
+        for program, execution in zip(probe_programs, executions, strict=True):
+            row: dict[tuple[int, ...], JsonAtom | None] = {}
+            for entry in execution.outputs:
+                actual = entry.get("actual")
+                row[tuple(entry.get("inputs", ()))] = (
+                    actual if isinstance(actual, (str, int, float, bool)) else None
+                )
+            outputs[program.id] = row
+
+        best: tuple[tuple[int, ...], JsonAtom, tuple[str, ...]] | None = None
+        for inputs in domain:
+            decision = self.oracle.decide(
+                assignment,
+                inputs,
+                lambda program, _inputs=inputs: outputs.get(program.id, {}).get(_inputs),
             )
-            if not self._run_suite(
-                target, assignment.entrypoint, (test,), deadline
-            ).all_passed:
-                return tuple(inputs)
-        raise ValueError("Could not minimize the verified counterexample")
+            if not decision.resolved or decision.expected is None:
+                continue
+            killed = tuple(
+                survivor.id
+                for survivor in survivors
+                if outputs.get(survivor.id, {}).get(inputs) != decision.expected
+            )
+            if killed and (best is None or len(killed) > len(best[2])):
+                best = (inputs, decision.expected, killed)
+        return best
 
     def _run_suite(
         self,
@@ -346,6 +390,7 @@ class AssessmentEngine:
         observed_actual: JsonAtom,
         target_title: str,
         assignment: AssignmentSpec,
+        oracle: OracleDecision,
     ) -> CandidatePatch:
         case_key = json.dumps(
             {"inputs": list(test.inputs), "expected": test.expected},
@@ -383,6 +428,7 @@ class AssessmentEngine:
             target_mutants=killed_mutants,
             payload_sha256="pending",
             pytest_source=pytest_source,
+            oracle=oracle,
             target=target,
         )
         return bind_candidate_payload(candidate)
@@ -393,6 +439,7 @@ class AssessmentEngine:
         verdicts: tuple[HypothesisVerdict, ...] | list[HypothesisVerdict],
         *,
         finding: bool,
+        decision: OracleDecision | None = None,
     ) -> dict:
         return {
             "oracle": f"{len(assignment.accepted_solutions)} independently checked controls",
@@ -403,4 +450,39 @@ class AssessmentEngine:
             ** len(assignment.input_names),
             "gpt_decides_correctness": False,
             "finding": finding,
+            "oracle_evidence": AssessmentEngine._oracle_evidence(assignment, verdicts, decision),
+        }
+
+    @staticmethod
+    def _oracle_evidence(
+        assignment: AssignmentSpec,
+        verdicts: tuple[HypothesisVerdict, ...] | list[HypothesisVerdict],
+        decision: OracleDecision | None,
+    ) -> dict:
+        """Make the truth source legible: how the expected output was established, or why not.
+
+        For a finding, this records the resolved oracle's provenance, agreeing sources, and quorum.
+        For an abstention it records the distinct reasons the oracle refused to establish truth —
+        the honest half of the loop, so "no finding" is never a silent black box.
+        """
+        controls = len(assignment.accepted_solutions)
+        if decision is not None and decision.resolved:
+            return {
+                "decision": "resolved",
+                "provenance": decision.provenance,
+                "sources": list(decision.evidence_sources),
+                "quorum": decision.quorum,
+                "controls": controls,
+            }
+        abstention_reasons = sorted(
+            {
+                verdict.reason
+                for verdict in verdicts
+                if verdict.status == "rejected" and "abstain" in verdict.reason.lower()
+            }
+        )
+        return {
+            "decision": "abstained" if abstention_reasons else "no_counterexample",
+            "abstention_reasons": abstention_reasons,
+            "controls": controls,
         }

@@ -31,8 +31,8 @@ disagreement are rejected.
 
 Execution runs behind a single domain protocol, `ExecutionGateway`, which turns a versioned
 `ExecutionRequest` (source SHA, entrypoint, typed cases, resource limits) into a versioned
-`ExecutionResult` carrying a runtime-pinned `ExecutionReceipt`. Today the only adapter is
-`LocalRestrictedRunner`: it accepts a small Python subset and starts a fresh `python -I` process
+`ExecutionResult` carrying a runtime-pinned `ExecutionReceipt`. `LocalRestrictedRunner` accepts a
+small Python subset and starts a fresh `python -I` process
 with a 1.5-second total deadline and an output ceiling enforced out-of-process. This is suitable
 for the seeded demonstration and its containment surface is locked by `tests/test_hostile_corpus.py`,
 but it is a source-AST boundary, not hostile-code isolation. `DockerIsolatedRunner` implements the
@@ -40,10 +40,11 @@ same gateway against a throwaway container that disables the network, drops all 
 a read-only root, and enforces memory/PID ceilings out of the guest; `GVisorDockerRunner` selects
 gVisor's `runsc` runtime, the syscall-filtering boundary appropriate for genuinely untrusted code.
 The container's isolation posture lives entirely in its `docker run` argv and is asserted by
-`tests/test_docker_isolated_runner.py`; a daemon-gated test runs it end to end. The container adapter
-is not yet the default analysis path — the engine still executes through the local runner — so this
-is defense-in-depth wiring, and running arbitrary (non-restricted) code additionally needs the
-`runsc` runtime, seccomp/user-namespace policy, and image provenance.
+`tests/test_docker_isolated_runner.py`; live runc and runsc tests prove network, memory, PID,
+read-only-root, and bounded-scratch enforcement. The container adapter is selected by the separate
+worker rather than the API's default path. Running arbitrary non-restricted programs still requires
+the pending stdin/stdout adapter, a deployed runsc worker, signed job/receipt transport, and pinned
+image provenance.
 
 A separate worker (`python -m coursefuzz.worker`, backend chosen by
 `COURSEFUZZ_EXECUTION_BACKEND=local|docker|gvisor`) claims queued runs from the shared repository
@@ -55,7 +56,7 @@ This is how isolated execution runs off the API process; deploy the API with
 
 ```text
 queued -> analyzing -> approval_required -> approved -> applying -> verified
-                    \-> failed                 \-> approved (retryable write failure)
+                    \-> failed                 \-> approved (write failure; reauthorization required)
 ```
 
 Every transition writes an ordered database audit event. SSE clients can resume with
@@ -67,6 +68,11 @@ When deployment keys are configured, bearer or HttpOnly-cookie authentication re
 request to a tenant. Assignment access is many-to-many so seeded examples can be explicitly
 global without exposing private imports; runs and tenant-prefixed idempotency keys have one owner.
 The API verifies ownership before run reads, approvals, writes, artifact downloads, and SSE streams.
+The repository consumes the one-time exact-payload approval and claims the
+`approved -> applying` transition in one database transaction. Concurrent apply deliveries cannot
+both start a destination action. A failed or interrupted action returns to `approved` but the
+consumed token remains invalid; an instructor must authorize the unchanged payload again. Local and
+GitHub destinations are idempotent so an uncertain prior write converges on the same bytes.
 
 Assignment source, controls, tests, domain, and destination are canonicalized into an immutable
 SHA-256 snapshot. Every run stores that snapshot hash and refuses execution if its assignment ID

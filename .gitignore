@@ -13,4 +13,5 @@ coursefuzz.db-*
 data/artifacts/
 coverage/
 .cache/
+.coverage
 work-uvicorn.*.log

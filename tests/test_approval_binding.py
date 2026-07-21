@@ -106,6 +106,7 @@ def test_consume_approval_is_bound_to_the_exact_token_and_payload(tmp_path: Path
     assert service.repository.consume_approval(run_id, token, "deadbeef") is False
     assert service.repository.consume_approval(run_id, "wrong-token", payload) is False
     assert service.repository.consume_approval(run_id, token, payload) is True
+    assert service.repository.consume_approval(run_id, token, payload) is False
 
 
 def test_apply_fails_closed_when_post_write_metrics_diverge_from_projection(tmp_path: Path) -> None:

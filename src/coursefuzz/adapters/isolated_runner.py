@@ -4,7 +4,9 @@
 adapter runs the *same* runner inside a throwaway container whose isolation does not depend on that
 allowlist: the network is disabled, all Linux capabilities are dropped, the root filesystem is
 read-only with a small tmpfs, privilege escalation is blocked, and memory/PID ceilings are enforced
-out of the guest. The entire isolation posture is expressed in the ``docker run`` argument vector,
+out of the guest. PID containment uses both the container cgroup and ``RLIMIT_NPROC`` because gVisor
+virtualizes guest tasks behind the runsc host processes. The entire isolation posture is expressed
+in the ``docker run`` argument vector,
 so ``tests/test_docker_isolated_runner.py`` asserts it directly through an injected executor without
 requiring a live daemon; a daemon-gated test runs the real container end to end.
 
@@ -125,6 +127,11 @@ class DockerIsolatedRunner(ExecutionGateway):
             "no-new-privileges",
             "--pids-limit",
             str(max_pids),
+            # Docker's PID cgroup contains runc tasks, while gVisor virtualizes guest tasks behind
+            # runsc. The OCI nproc rlimit is therefore the guest-visible backstop for runsc. Keep
+            # both: cgroups are container-scoped; nproc is user-scoped on an ordinary host kernel.
+            "--ulimit",
+            f"nproc={max_pids}:{max_pids}",
             "--memory",
             f"{memory_bytes}b",
             "--memory-swap",

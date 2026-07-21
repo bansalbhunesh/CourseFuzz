@@ -16,18 +16,58 @@ repository has more pages, agents, or integrations.
 
 ## Current baseline
 
-CourseFuzz already has the full local workflow: immutable assignment snapshots, bounded hypothesis
-generation, independent oracle execution, counterexample minimization, exact-payload approval,
-local and GitHub destinations, destination read-back, regression verification, tenant isolation,
-recovery, SQLite/Postgres persistence, audit events, a responsive UI, CI, and a frozen synthetic
-benchmark.
+CourseFuzz has the full verified repair workflow plus four deeper foundations: a versioned
+`ExecutionGateway` with Docker and gVisor adapters, explicit oracle provenance and abstention,
+budgeted/deduplicated candidate generators with a shared execution ledger, and a non-vendored
+CodeContests/CodeNet-origin evaluation manifest and hidden-scorer contract. Exact approval
+consumption and the `approved -> applying` claim are one database transaction in SQLite and
+Postgres. External GitHub delivery remains pending until the target repository's own CI is read
+back. Every one of those claims has committed tests.
 
-The next work must close three honest gaps:
+The next work must close four honest gates:
 
-1. The restricted subprocess is a demo boundary, not hostile-code isolation.
-2. Synthetic benchmark v1 is not evidence of real-course generalization.
-3. Deterministic CourseFuzz ties an equal-budget random-8 baseline, so search superiority is not
-   established.
+1. The public release still lacks a preserved live Demo-Target PR receipt and final demo video.
+2. The gVisor worker and live abuse tests exist, but the free Render web service still uses the
+   restricted local path; genuinely untrusted programs require a separately deployed runsc worker.
+3. The frozen real-corpus selection is not yet a performance result. Stdin/stdout invocation,
+   runtime label validation, sealed baseline candidate files, and second-review signoff remain.
+4. Deterministic CourseFuzz ties an equal-budget random-8 baseline on the small synthetic corpus.
+   Search superiority remains unestablished until the larger held-out corpus can be replayed.
+
+### Gap 3, measured: why the tie is structural (2026-07-22)
+
+We instrumented the frozen synthetic corpus by executing every mutant and the reference across each
+assignment's whole bounded domain and reasoning about kill-sets directly (`scratchpad` probe, method
+committed as the directed selector). Aggregate mutation score by strategy:
+
+| Strategy | Mutation score | Notes |
+| --- | --- | --- |
+| Instructor tests only | 53.3% | starting point |
+| Single added test (product) | **93.3% → 95.0%** | one oracle-backed regression test per assignment |
+| Feedback-directed minimal *suite* | 100% | greedy set-cover, ≤2 tests per assignment |
+| Random-8 set-cover | 100% | 8 blind samples, greedy set-cover |
+
+Reading: a feedback-directed suite reaches every wrong program, **but so does an equal-budget
+random-8 set-cover**. The reason is the corpus itself — every domain is ≤27 points, so eight blind
+samples cannot miss the discriminating inputs. On saturated domains a directed search has nothing to
+separate it from random. **This is a corpus limitation, not a search result**, and Milestone 3's
+larger, non-vendored real corpus (with input domains a blind sweep cannot cover) is the only honest
+way to establish or refute superiority. Do not report the current 0.0-point advantage as either a
+win or a defeat for the algorithm; it is a measurement the corpus cannot resolve.
+
+What shipped from this finding (commit "directed scan", one-test apply contract unchanged): the
+selector no longer verifies a blind winner and then minimizes it toward a single target — which shed
+coverage — but scans the bounded domain for the oracle-resolved input that discriminates the *most*
+surviving mutants, tie-broken toward the smallest input. That lifted single-test mutation score from
+93.3% to 95.0% (the entire gap was one case where the smallest divergent input caught two of three
+survivors and a slightly larger input caught all three). It is the exact mechanism that would
+separate from random once domains are large enough to matter; it changes nothing about the honest
+present-day claim.
+
+Pitch line, honest form: *"CourseFuzz selects the single input that discriminates the most wrong
+programs at once, each expected output established by independent oracles. On assignments small
+enough for a random sweep to saturate, that advantage is invisible; it emerges as the input space
+grows, which is what the real-corpus evaluation is built to measure."*
 
 ## How the two repositories connect
 
@@ -97,10 +137,9 @@ inside the target repository's existing pytest workflow.
 5. The adapter reads the file back from the run-specific GitHub branch, compares the exact bytes,
    computes the SHA-256 receipt, reruns the full misconception corpus and accepted controls, and
    persists the PR URL, commit information, artifact hash, and ordered audit events in Postgres.
-6. Demo-Target's separate `pull_request` workflow runs `python -m pytest`. Today that CI result is
-   visible on GitHub but is not yet read back by CourseFuzz; waiting for and persisting the target CI
-   conclusion is a Milestone 5 requirement. A successful destination receipt currently proves the
-   exact GitHub bytes and CourseFuzz's own rerun, not the external Actions conclusion.
+6. Demo-Target's separate `pull_request` workflow runs `python -m pytest`. CourseFuzz holds the run
+   at `external_ci_pending`, polls the target check-runs API, persists the Actions URL and conclusion,
+   and advances to `verified` only after success. Failure or timeout is recorded explicitly.
 
 Retries are bounded and idempotent at the destination boundary: if the run branch or draft PR
 already exists, CourseFuzz reuses it, converges the run-specific target file to the approved bytes,
@@ -132,16 +171,16 @@ Use this ladder as the short operational plan. The detailed milestones below def
 requirements; this section defines what to do next and what evidence permits the project to advance.
 Do not work on two levels at once when the earlier level's proof is incomplete.
 
-| Level | Outcome | First concrete move | Exit evidence |
+| Level | Current state | Next concrete move | Exit evidence |
 | --- | --- | --- | --- |
-| 0. Release proof | A judge can reproduce the complete hosted action loop. | Run the deployed two-repository flow against Demo-Target. | Public draft PR, passing target CI, read-back receipt, video, and passing submission guard. |
-| 1. Safe execution | Student code no longer runs inside the API container. | Introduce `ExecutionGateway` and one remote no-network sandbox adapter. | Hostile-program corpus passes and every execution has a runtime-pinned receipt. |
-| 2. Trustworthy truth | Correctness does not depend on two programs sharing the same bug. | Add `OracleDecision` plus reference, property, fixture, and consensus adapters. | Disagreement causes abstention and every expected output links to evidence. |
-| 3. Real evidence | Claims extend beyond the authored synthetic corpus. | Build a licensed, non-vendored manifest for a held-out Python corpus. | Independent scorer, second reviewer, hashes, confidence intervals, and replayable results. |
-| 4. Better search | CourseFuzz demonstrates an advantage over equal-budget baselines. | Add a shared candidate budget and survivor-disagreement generator. | Higher recall at equal cost, or equal recall with fewer executions, without more false kills. |
-| 5. Real instructor workflow | A teacher connects a repository without copying JSON or tokens. | Replace the shared token with a repository-scoped GitHub App importer. | Install, analyze, approve, draft PR, external CI read-back, and recovery all work end to end. |
-| 6. Durable service | Multiple courses and workers preserve exactly-once business effects. | Add migrations, a transactional outbox, leased jobs, and immutable object storage. | Multi-instance chaos test and backup/restore exercise pass. |
-| 7. Validated product | Instructors can make safe decisions without coaching. | Run five observed usability sessions on the evidence-to-approval flow. | Reviewed findings become measured product changes; keyboard, mobile, and AA gates pass. |
+| 0. Release proof | Public app/repo exist; receipt and video missing. | Run the deployed two-repository flow against Demo-Target. | Public draft PR, passing target CI, read-back receipt, video, and passing submission guard. |
+| 1. Safe execution | Gateway, runc/runsc adapters, receipts, worker, and live abuse CI shipped. | Deploy the worker on a runsc-capable host and replay the full hostile corpus there. | No student code in the API process; deployed runtime-pinned receipts for every execution. |
+| 2. Trustworthy truth | Consensus `OracleDecision`, abstention, provenance, UI, and audit shipped. | Add reference/property/fixture adapters and versioned stdin/stdout invocation. | Shared-bug and nondeterministic cases abstain; every displayed output links to evidence. |
+| 3. Real evidence | Frozen 20-task/500-wrong manifest, exclusions, leakage boundary, scorer, and CI verifier shipped. | Runtime-validate labels, seal baseline files, and obtain second-review signoff. | Replayable scored results with hashes, uncertainty, costs, and human signoff. |
+| 4. Better search | Shared budget, deduplication, provenance, execution ledger, and directed final selection shipped. | Run equal-budget real-corpus ablations and add survivor-disagreement generation if needed. | Higher recall at equal cost, or equal recall with fewer executions, without more false kills. |
+| 5. Real instructor workflow | Token-based draft PR plus target-CI read-back shipped. | Replace the shared token with a repository-scoped GitHub App importer. | Install, analyze, approve, verified draft PR, and recovery without copying tokens or JSON. |
+| 6. Durable service | Postgres persistence and atomic one-time apply claim shipped; single worker topology only. | Add migrations, transactional outbox, leases, immutable object storage, and restore drills. | Multi-instance chaos test and backup/restore exercise pass. |
+| 7. Validated product | Responsive evidence/approval UI exists; no instructor study yet. | Run five observed usability sessions on the evidence-to-approval flow. | Reviewed findings become measured product changes; keyboard, mobile, and AA gates pass. |
 
 ### Immediate queue: finish Level 0
 
@@ -171,30 +210,28 @@ verbal claim.
 Level 0 is blocked if the PR is mocked, the generated file differs from the approved payload, target
 CI is red, any public link requires the owner's session, or the video hides a failed/retried action.
 
-### First engineering queue after release proof
+### Engineering queue after release proof
 
-Once Level 0 passes, create the following implementation issues in this order:
+Once Level 0 passes, implement these remaining slices in dependency order:
 
-1. **Version the execution boundary.** Add typed `ExecutionRequest` and `ExecutionResult` models,
-   move the current runner behind `ExecutionGateway`, and make the existing local adapter pass a
-   shared contract suite without changing behavior.
-2. **Add the remote sandbox adapter.** Run one execution batch per ephemeral no-network sandbox;
-   enforce CPU, wall, memory, PID, filesystem, and output limits outside the guest; persist the
-   runtime image digest and termination reason.
-3. **Commit the hostile-program corpus.** Cover infinite loops, process and memory growth, large
-   output, filesystem traversal, environment reads, socket attempts, interpreter crashes, and
-   cancellation. No untrusted-code claim is allowed until this corpus passes in deployment.
-4. **Introduce `OracleDecision`.** Preserve the current consensus behavior as one adapter, add
-   reference/property/fixture adapters, and expose abstention and provenance in the UI and audit.
-5. **Version assignment invocation.** Add callable and stdin/stdout modes, input/output schemas,
-   runtime pins, migrations, and replay tests before selecting a real external corpus.
-6. **Build the leakage-resistant scorer.** Separate candidate generation from hidden scoring,
-   freeze task selection and labels, record licenses and hashes, and require a second reviewer.
-7. **Add equal-budget search accounting.** Deduplicate candidates across generators, charge every
-   execution to one ledger, record seeds, and publish ablations before claiming superiority.
-8. **Replace the demo token with a GitHub App.** Scope installations per repository, import an
-   immutable course commit, consume webhook delivery IDs idempotently, and wait for target CI before
-   declaring the external action verified.
+1. **Version stdin/stdout invocation.** Add deterministic serialization, schemas, runtime pins,
+   migrations, and replay tests while keeping the existing callable path backward-compatible.
+2. **Deploy the runsc worker.** Put the existing gVisor adapter on a separate host, require signed
+   jobs/receipts, pin the image digest, add queue backpressure, and replay the live abuse corpus.
+3. **Runtime-validate the real manifest.** Execute both oracle programs, three controls, and 500
+   wrong programs; version every drift exclusion instead of silently dropping failures.
+4. **Complete the oracle family.** Add reference, property, and fixture adapters plus repeated-run
+   nondeterminism detection; preserve consensus abstention as the default.
+5. **Freeze equal-budget candidates.** Produce public, random, boundary/property,
+   CourseFuzz-no-model, and CourseFuzz-model files with seeds and shared-ledger cost receipts.
+6. **Obtain independent signoff.** Have a second reviewer approve licensing, filters, controls, and
+   central labels in the committed reviewer schema.
+7. **Score and publish the real evaluation.** Run hidden scoring only after candidate sealing; report
+   per-task failures, confidence intervals, abstention, first-finding queries, executions, and costs.
+8. **Use the result to choose search work.** Add survivor-disagreement or coverage guidance only if
+   the ablation identifies a measured failure; do not optimize to hidden answers.
+9. **Replace the demo token with a GitHub App.** Scope installations per repository, import immutable
+   course commits, deduplicate webhooks, and retain target-CI read-back before verification.
 
 For each issue, require: a user-visible outcome, typed contract changes, failure and recovery states,
 unit plus integration coverage, one end-to-end acceptance test, security impact, evaluation impact,
@@ -243,14 +280,16 @@ Do not begin a UI redesign or add another language during this milestone.
 
 Purpose: make the central safety boundary credible for untrusted student programs.
 
+Status: **implementation and CI proof complete; separate worker deployment remains open.**
+
 Code shape:
 
 ```text
 AssessmentEngine
   -> ExecutionGateway (domain protocol)
        -> LocalRestrictedRunner (development only)
-       -> RemoteIsolatedRunner (production)
-            -> one ephemeral sandbox per execution batch
+       -> DockerIsolatedRunner (runc defense in depth)
+       -> GVisorDockerRunner (runsc target; one ephemeral sandbox per batch)
 ```
 
 Introduce versioned `ExecutionRequest` and `ExecutionResult` contracts containing assignment
@@ -287,6 +326,9 @@ Exit gate:
 
 Purpose: avoid treating two accepted programs that share a bug as ground truth.
 
+Status: **consensus decision, abstention, provenance, UI, and audit complete; additional oracle
+adapters plus invocation/schema versioning remain open.**
+
 Refactor correctness into explicit oracle adapters:
 
 - `ConsensusOracle`: current independently authored accepted-solution agreement.
@@ -316,6 +358,9 @@ Tests and exit gate:
 ## Milestone 3 — build a real, leakage-resistant evaluation
 
 Purpose: replace the synthetic-only credibility ceiling with independently reviewable evidence.
+
+Status: **selection, provenance, exclusions, leakage boundary, scorer contract, confidence intervals,
+and manual replay workflow complete; scored claims remain blocked by the gates below.**
 
 Current Phase-5 branch progress: the pinned acquisition, 20-task/500-wrong-program manifest,
 complete exclusion ledger, public-only bundle, candidate receipt, equal-budget validation, hidden
@@ -363,6 +408,10 @@ Exit gate:
 Purpose: establish technical depth in the central algorithm instead of relying on generated test
 ideas.
 
+Status: **budgeted generator contracts, boundary/permutation generators, global deduplication,
+provenance, shared execution accounting, and directed final selection complete; real-corpus
+ablations and any evidence-driven generator additions remain open.**
+
 Add a common budgeted candidate-generator interface. Each generator receives the same sanitized
 context and remaining execution budget and returns candidates plus provenance. Start with:
 
@@ -370,7 +419,9 @@ context and remaining execution budget and returns candidates plus provenance. S
 - property-based strategies derived from typed input schemas;
 - model-proposed hypotheses;
 - survivor-disagreement search that selects inputs predicted to partition the remaining wrong
-  programs most strongly;
+  programs most strongly. The engine already performs an **execution-backed** directed final scan;
+  promote it to a budgeted generator only if real-corpus ablations show the present boundary and
+  permutation generators are insufficient;
 - coverage-guided generation only after coverage collection is isolated from oracle scoring.
 
 The scheduler should deduplicate candidates globally, record which generator produced each one,
@@ -485,18 +536,18 @@ image selection. Add the next language only when a real course partner or the va
 corpus demands it. The new adapter must pass the same execution, oracle, security, and evaluation
 contract suites as Python.
 
-## First ten implementation issues
+## Next ten implementation issues
 
-1. Publish and verify the current release evidence bundle.
-2. Define versioned execution request/result contracts and adapter tests.
-3. Implement one no-network remote isolated runner behind `ExecutionGateway`.
-4. Commit the hostile-program abuse corpus and deployed containment test.
-5. Introduce `OracleDecision` and the four oracle adapters.
-6. Add assignment schema versioning and replay migrations.
-7. Build the non-vendored real-corpus manifest and two-process scorer.
-8. Add equal-budget baseline accounting and confidence-interval reporting.
-9. Implement survivor-disagreement search with ablation tests.
-10. Replace the shared GitHub token path with a repository-scoped GitHub App import/action loop.
+1. Publish and verify the live Demo-Target receipt and demo video.
+2. Add versioned stdin/stdout invocation plus snapshot migrations.
+3. Deploy the existing gVisor worker on a runsc-capable host.
+4. Runtime-validate the 20-task/500-wrong frozen manifest.
+5. Add reference, property, and fixture oracle adapters with nondeterminism checks.
+6. Freeze equal-budget baseline and CourseFuzz candidate files with cost receipts.
+7. Obtain second-review signoff for licensing, controls, and labels.
+8. Score and publish the held-out evaluation with uncertainty and failures.
+9. Run generator ablations and implement only the search improvement they justify.
+10. Replace the shared GitHub token with a repository-scoped GitHub App workflow.
 
 Each issue must include a user-visible outcome, typed contract changes, failure states, tests,
 evaluation impact, security impact, and documentation changes. Split an issue when its acceptance
