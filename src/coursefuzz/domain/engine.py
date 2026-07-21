@@ -147,7 +147,7 @@ class AssessmentEngine:
             survivors_before=tuple(item.id for item in survivors),
             hypothesis_verdicts=verdicts,
             candidate=candidate,
-            evidence=self._evidence(assignment, verdicts, finding=True),
+            evidence=self._evidence(assignment, verdicts, finding=True, decision=decision),
         )
 
     def verify_applied_patch(
@@ -439,6 +439,7 @@ class AssessmentEngine:
         verdicts: tuple[HypothesisVerdict, ...] | list[HypothesisVerdict],
         *,
         finding: bool,
+        decision: OracleDecision | None = None,
     ) -> dict:
         return {
             "oracle": f"{len(assignment.accepted_solutions)} independently checked controls",
@@ -449,4 +450,39 @@ class AssessmentEngine:
             ** len(assignment.input_names),
             "gpt_decides_correctness": False,
             "finding": finding,
+            "oracle_evidence": AssessmentEngine._oracle_evidence(assignment, verdicts, decision),
+        }
+
+    @staticmethod
+    def _oracle_evidence(
+        assignment: AssignmentSpec,
+        verdicts: tuple[HypothesisVerdict, ...] | list[HypothesisVerdict],
+        decision: OracleDecision | None,
+    ) -> dict:
+        """Make the truth source legible: how the expected output was established, or why not.
+
+        For a finding, this records the resolved oracle's provenance, agreeing sources, and quorum.
+        For an abstention it records the distinct reasons the oracle refused to establish truth —
+        the honest half of the loop, so "no finding" is never a silent black box.
+        """
+        controls = len(assignment.accepted_solutions)
+        if decision is not None and decision.resolved:
+            return {
+                "decision": "resolved",
+                "provenance": decision.provenance,
+                "sources": list(decision.evidence_sources),
+                "quorum": decision.quorum,
+                "controls": controls,
+            }
+        abstention_reasons = sorted(
+            {
+                verdict.reason
+                for verdict in verdicts
+                if verdict.status == "rejected" and "abstain" in verdict.reason.lower()
+            }
+        )
+        return {
+            "decision": "abstained" if abstention_reasons else "no_counterexample",
+            "abstention_reasons": abstention_reasons,
+            "controls": controls,
         }

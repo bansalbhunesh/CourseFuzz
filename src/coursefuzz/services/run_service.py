@@ -162,6 +162,8 @@ class RunService:
                         "inputs": list(analysis.candidate.test.inputs),
                         "expected": analysis.candidate.test.expected,
                         "payload_sha256": analysis.candidate.payload_sha256,
+                        # How the expected output was established: provenance, sources, quorum.
+                        "oracle": analysis.evidence.get("oracle_evidence"),
                     },
                 )
                 next_status = RunStatus.APPROVAL_REQUIRED
@@ -171,7 +173,11 @@ class RunService:
                     "analysis.no_finding",
                     "verify",
                     "Execution found no surviving counterexample that requires a test change.",
-                    {"survivors": list(analysis.survivors_before)},
+                    {
+                        "survivors": list(analysis.survivors_before),
+                        # Records why the oracle abstained, so "no finding" is never a black box.
+                        "oracle": analysis.evidence.get("oracle_evidence"),
+                    },
                 )
                 next_status = RunStatus.NO_ACTION_REQUIRED
             run = run.model_copy(
