@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import { AssignmentImportDialog } from "./AssignmentImportDialog";
 
 type RunStatus =
   | "queued"
@@ -7,7 +9,10 @@ type RunStatus =
   | "approved"
   | "applying"
   | "verified"
+  | "no_action_required"
   | "failed";
+
+type JsonAtom = string | number | boolean;
 
 type Demo = {
   id: string;
@@ -15,10 +20,37 @@ type Demo = {
   summary: string;
   language: string;
   entrypoint: string;
-  instructor_tests: Array<{ inputs: number[]; expected: string; label: string }>;
+  instructor_tests: Array<{ inputs: number[]; expected: JsonAtom; label: string }>;
   mutant_count: number;
   accepted_solution_count: number;
   mode: "live-gpt-5.6" | "deterministic-fallback";
+};
+
+type AssignmentSummary = {
+  id: string;
+  snapshot_sha256: string;
+  provenance: "seeded" | "manual";
+  title: string;
+};
+
+type AssignmentSnapshot = {
+  id: string;
+  snapshot_sha256: string;
+  provenance: "seeded" | "manual";
+  spec: {
+    title: string;
+    summary: string;
+    language: string;
+    entrypoint: string;
+    instructor_tests: Array<{ inputs: number[]; expected: JsonAtom; label: string }>;
+    mutants: unknown[];
+    accepted_solutions: unknown[];
+  };
+};
+
+type Health = {
+  mode: "live-gpt-5.6" | "deterministic-fallback";
+  auth: "required" | "local-demo";
 };
 
 type Metrics = {
@@ -39,8 +71,8 @@ type Verdict = {
   };
   status: "rejected" | "verified";
   reason: string;
-  expected: string | null;
-  actual: string | null;
+  expected: JsonAtom | null;
+  actual: JsonAtom | null;
   killed_mutants: string[];
 };
 
@@ -51,13 +83,21 @@ type Analysis = {
   hypothesis_verdicts: Verdict[];
   candidate: {
     id: string;
-    test: { inputs: number[]; expected: string; label: string; source: string };
-    observed_actual: string | null;
+    test: { inputs: number[]; expected: JsonAtom; label: string; source: string };
+    observed_actual: JsonAtom | null;
     rationale: string;
     target_mutants: string[];
     payload_sha256: string;
     pytest_source: string;
-  };
+    target: {
+      kind: "local_artifact" | "github_pull_request";
+      path: string;
+      repository: string | null;
+      base_branch: string | null;
+      base_commit_sha: string | null;
+      head_branch: string | null;
+    };
+  } | null;
   evidence: Record<string, unknown>;
 };
 
@@ -71,6 +111,17 @@ type Run = {
   analysis: Analysis | null;
   approval_payload_sha256: string | null;
   artifact_sha256: string | null;
+  action_receipt: {
+    kind: "local_artifact" | "github_pull_request";
+    path: string;
+    artifact_sha256: string;
+    read_back_verified: boolean;
+    external_url: string | null;
+    repository: string | null;
+    base_commit_sha: string | null;
+    commit_sha: string | null;
+    pull_request_number: number | null;
+  } | null;
   error: string | null;
 };
 
@@ -104,14 +155,21 @@ const statusOrder: Record<RunStatus, number> = {
   approved: 3,
   applying: 3,
   verified: 4,
+  no_action_required: 2,
   failed: 4,
 };
 
+class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, options);
+  const response = await fetch(url, { credentials: "same-origin", ...options });
   if (!response.ok) {
     const body = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(body.detail ?? "The request failed.");
+    throw new ApiError(body.detail ?? "The request failed.", response.status);
   }
   return response.json() as Promise<T>;
 }
@@ -132,34 +190,74 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
+function assignmentToDemo(snapshot: AssignmentSnapshot, mode: Health["mode"]): Demo {
+  return {
+    id: snapshot.id,
+    title: snapshot.spec.title,
+    summary: snapshot.spec.summary,
+    language: snapshot.spec.language,
+    entrypoint: snapshot.spec.entrypoint,
+    instructor_tests: snapshot.spec.instructor_tests,
+    mutant_count: snapshot.spec.mutants.length,
+    accepted_solution_count: snapshot.spec.accepted_solutions.length,
+    mode,
+  };
+}
+
 export function App() {
+  const [health, setHealth] = useState<Health | null>(null);
   const [demo, setDemo] = useState<Demo | null>(null);
+  const [assignments, setAssignments] = useState<AssignmentSummary[]>([]);
+  const [importOpen, setImportOpen] = useState(false);
   const [run, setRun] = useState<Run | null>(null);
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [receipt, setReceipt] = useState<ApprovalReceipt | null>(null);
   const [reviewed, setReviewed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsAuth, setNeedsAuth] = useState(false);
+  const [accessToken, setAccessToken] = useState("");
+  const [sessionRevision, setSessionRevision] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     let active = true;
-    api<Demo>("/api/demo")
-      .then((value) => active && setDemo(value))
-      .catch((reason: Error) => active && setError(reason.message));
+    async function bootstrap() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const currentHealth = await api<Health>("/api/health");
+        if (!active) return;
+        setHealth(currentHealth);
+        const available = await api<AssignmentSummary[]>("/api/assignments");
+        if (!active) return;
+        setNeedsAuth(false);
+        setAssignments(available);
 
-    const savedRun = new URLSearchParams(window.location.search).get("run");
-    if (savedRun) {
-      api<Run>(`/api/runs/${savedRun}`)
-        .then((value) => active && setRun(value))
-        .catch(() => {
-          window.history.replaceState({}, "", window.location.pathname);
-        });
+        const savedRun = params.get("run");
+        let assignmentId = params.get("assignment") ?? "triangle-classifier";
+        if (savedRun) {
+          const saved = await api<Run>(`/api/runs/${savedRun}`);
+          if (!active) return;
+          setRun(saved);
+          assignmentId = saved.assignment_id;
+        }
+        const snapshot = await api<AssignmentSnapshot>(`/api/assignments/${assignmentId}`);
+        if (active) setDemo(assignmentToDemo(snapshot, currentHealth.mode));
+      } catch (reason) {
+        if (!active) return;
+        if (reason instanceof ApiError && reason.status === 401) {
+          setNeedsAuth(true);
+          setError(null);
+        } else {
+          setError(reason instanceof Error ? reason.message : "Could not load the workspace.");
+        }
+      }
     }
+    void bootstrap();
     return () => {
       active = false;
     };
-  }, []);
+  }, [sessionRevision]);
 
   useEffect(() => {
     eventSourceRef.current?.close();
@@ -175,9 +273,11 @@ export function App() {
     };
     const names = [
       "run.created",
+      "run.recovered",
       "analysis.started",
       "analysis.hypotheses",
       "analysis.verified",
+      "analysis.no_finding",
       "approval.required",
       "approval.granted",
       "patch.applying",
@@ -199,6 +299,62 @@ export function App() {
 
   const activeStep = run ? statusOrder[run.status] : -1;
 
+  async function signIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api<{ tenant_id: string }>("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: accessToken }),
+      });
+      setAccessToken("");
+      setNeedsAuth(false);
+      setSessionRevision((current) => current + 1);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Sign-in failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signOut() {
+    await fetch("/api/session", { method: "DELETE", credentials: "same-origin" });
+    eventSourceRef.current?.close();
+    setDemo(null);
+    setRun(null);
+    setAssignments([]);
+    setNeedsAuth(true);
+  }
+
+  async function selectAssignment(assignmentId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const [snapshot, health] = await Promise.all([
+        api<AssignmentSnapshot>(`/api/assignments/${assignmentId}`),
+        api<Health>("/api/health"),
+      ]);
+      setDemo(assignmentToDemo(snapshot, health.mode));
+      setRun(null);
+      setEvents([]);
+      setReceipt(null);
+      setReviewed(false);
+      window.history.replaceState({}, "", `?assignment=${assignmentId}`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not load the assignment.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleImported(assignmentId: string) {
+    const available = await api<AssignmentSummary[]>("/api/assignments");
+    setAssignments(available);
+    await selectAssignment(assignmentId);
+  }
+
   async function startRun() {
     setBusy(true);
     setError(null);
@@ -215,7 +371,7 @@ export function App() {
         body: JSON.stringify({ assignment_id: demo?.id ?? "triangle-classifier" }),
       });
       setRun(value);
-      window.history.replaceState({}, "", `?run=${value.id}`);
+      window.history.replaceState({}, "", `?assignment=${value.assignment_id}&run=${value.id}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not start the run.");
     } finally {
@@ -223,8 +379,8 @@ export function App() {
     }
   }
 
-  async function approve() {
-    if (!run?.analysis || !reviewed) return;
+  async function issueApproval() {
+    if (!run?.analysis?.candidate) return;
     setBusy(true);
     setError(null);
     try {
@@ -240,6 +396,11 @@ export function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function approve() {
+    if (!reviewed) return;
+    await issueApproval();
   }
 
   async function applyAndVerify() {
@@ -262,8 +423,41 @@ export function App() {
     }
   }
 
+  if (needsAuth) {
+    return (
+      <main className="sign-in-shell">
+        <section className="sign-in-panel" aria-labelledby="sign-in-heading">
+          <a className="wordmark" href="/" aria-label="CourseFuzz home">
+            <span className="wordmark-mark" aria-hidden="true">CF</span>
+            <span>CourseFuzz</span>
+          </a>
+          <div>
+            <span className="section-number">PROTECTED WORKSPACE</span>
+            <h1 id="sign-in-heading">Enter your instructor access key.</h1>
+            <p>The key is exchanged for an HttpOnly session and is never stored in browser storage.</p>
+          </div>
+          {error && <p className="sign-in-error" role="alert">{error}</p>}
+          <form onSubmit={signIn}>
+            <label htmlFor="access-key">Access key</label>
+            <input
+              id="access-key"
+              type="password"
+              value={accessToken}
+              onChange={(event) => setAccessToken(event.target.value)}
+              autoComplete="current-password"
+              required
+            />
+            <button className="primary-action full" type="submit" disabled={busy}>
+              {busy ? "Checking key…" : "Open workspace"}<span aria-hidden="true">→</span>
+            </button>
+          </form>
+        </section>
+      </main>
+    );
+  }
+
   if (!demo && !error) {
-    return <main className="center-state" aria-live="polite">Loading the seeded assignment…</main>;
+    return <main className="center-state" aria-live="polite">Loading the assignment workspace…</main>;
   }
 
   return (
@@ -273,11 +467,25 @@ export function App() {
           <span className="wordmark-mark" aria-hidden="true">CF</span>
           <span>CourseFuzz</span>
         </a>
-        <div className="run-meta">
-          <span className="mode-dot" aria-hidden="true" />
-          <span>{demo?.mode === "live-gpt-5.6" ? "GPT-5.6 hypotheses" : "Deterministic fallback"}</span>
-          <span className="meta-separator" aria-hidden="true">/</span>
-          <span>seeded demo corpus</span>
+        <div className="masthead-tools">
+          <label className="assignment-switcher">
+            <span className="sr-only">Current assignment</span>
+            <select
+              value={demo?.id ?? ""}
+              onChange={(event) => void selectAssignment(event.target.value)}
+              disabled={busy || Boolean(run && ["queued", "analyzing", "applying"].includes(run.status))}
+            >
+              {assignments.map((assignment) => (
+                <option value={assignment.id} key={assignment.id}>{assignment.title}</option>
+              ))}
+            </select>
+          </label>
+          <button className="text-action" type="button" onClick={() => setImportOpen(true)}>Import assignment</button>
+          {health?.auth === "required" && <button className="text-action" type="button" onClick={() => void signOut()}>Sign out</button>}
+          <div className="run-meta">
+            <span className="mode-dot" aria-hidden="true" />
+            <span>{demo?.mode === "live-gpt-5.6" ? "GPT-5.6 hypotheses" : "Deterministic fallback"}</span>
+          </div>
         </div>
       </header>
 
@@ -303,8 +511,8 @@ export function App() {
 
       <section className="hero">
         <div className="eyebrow">Assessment integrity / {demo?.language}</div>
-        <h1>{run?.analysis ? "One wrong solution still passes." : "Your tests pass. A wrong solution does too."}</h1>
-        <p>{run?.analysis ? run.analysis.candidate.rationale : demo?.summary}</p>
+        <h1>{run?.analysis?.candidate ? "One wrong solution still passes." : run?.analysis ? "No executable blind spot survived." : "Your tests pass. A wrong solution does too."}</h1>
+        <p>{run?.analysis?.candidate ? run.analysis.candidate.rationale : run?.analysis ? "Every supplied misconception program is caught, or every bounded hypothesis was rejected by execution." : demo?.summary}</p>
         {!run && (
           <button className="primary-action" type="button" onClick={startRun} disabled={busy || !demo}>
             {busy ? "Opening run…" : "Red-team this suite"}
@@ -337,7 +545,7 @@ export function App() {
                 {demo.instructor_tests.map((test) => (
                   <li key={`${test.label}-${test.inputs.join("-")}`}>
                     <code>{demo.entrypoint}({test.inputs.join(", ")})</code>
-                    <span>→ {test.expected}</span>
+                    <span>→ {String(test.expected)}</span>
                   </li>
                 ))}
               </ol>
@@ -374,7 +582,7 @@ export function App() {
                   <span className="score-after" />
                 </div>
                 <div className="score-footnote">
-                  <span>{run.analysis.before.surviving_mutants} survivors before</span>
+                  <span>{run.analysis.before.surviving_mutants} survivor{run.analysis.before.surviving_mutants === 1 ? "" : "s"} before</span>
                   <span>{pct(run.analysis.projected_after.accepted_solution_pass_rate)} accepted controls pass</span>
                 </div>
               </div>
@@ -390,8 +598,8 @@ export function App() {
                   </header>
                   <div className="counterexample">
                     <div><small>INPUT</small><code>({run.analysis.candidate.test.inputs.join(", ")})</code></div>
-                    <div><small>REFERENCE</small><strong>{run.analysis.candidate.test.expected}</strong></div>
-                    <div className="wrong-output"><small>WRONG PROGRAM</small><strong>{run.analysis.candidate.observed_actual ?? "not captured"}</strong></div>
+                    <div><small>REFERENCE</small><strong>{String(run.analysis.candidate.test.expected)}</strong></div>
+                    <div className="wrong-output"><small>WRONG PROGRAM</small><strong>{String(run.analysis.candidate.observed_actual ?? "not captured")}</strong></div>
                   </div>
                   <p>Execution reproduced the disagreement after minimizing the generated hypothesis.</p>
                   <footer>
@@ -402,7 +610,7 @@ export function App() {
                 </article>
               )}
 
-              <section className="patch-proof" aria-labelledby="patch-heading">
+              {run.analysis.candidate && <section className="patch-proof" aria-labelledby="patch-heading">
                 <div className="section-heading compact">
                   <div><span className="section-number">PROPOSED PATCH</span><h3 id="patch-heading">One test closes the gap</h3></div>
                   <span className="hash-label">SHA {shortHash(run.analysis.candidate.payload_sha256)}</span>
@@ -411,9 +619,9 @@ export function App() {
                 <dl className="evidence-notes">
                   <div><dt>Scope</dt><dd>One generated pytest</dd></div>
                   <div><dt>Control check</dt><dd>{pct(run.analysis.projected_after.accepted_solution_pass_rate)} accepted solutions pass</dd></div>
-                  <div><dt>Write target</dt><dd>verified_tests/test_generated.py</dd></div>
+                  <div><dt>Write target</dt><dd>{run.analysis.candidate.target.repository ? `${run.analysis.candidate.target.repository}/` : ""}{run.analysis.candidate.target.path}</dd></div>
                 </dl>
-              </section>
+              </section>}
             </>
           )}
         </section>
@@ -424,10 +632,16 @@ export function App() {
             {!run?.analysis && (
               <><h2>No write without proof.</h2><p>CourseFuzz can inspect and execute freely. Writing a generated test requires review of the exact payload.</p></>
             )}
-            {run?.analysis && run.status === "approval_required" && (
+            {run?.analysis?.candidate && run.status === "approval_required" && (
               <>
                 <h2>Approve this exact test?</h2>
                 <p>The approval token will be bound to this payload hash. Any content change invalidates it.</p>
+                <div className="destination-proof">
+                  <small>DESTINATION</small>
+                  <strong>{run.analysis.candidate.target.repository ?? "CourseFuzz artifact store"}</strong>
+                  <code>{run.analysis.candidate.target.path}</code>
+                  {run.analysis.candidate.target.base_commit_sha && <><small>BASE COMMIT</small><code>{shortHash(run.analysis.candidate.target.base_commit_sha)}</code></>}
+                </div>
                 <label className="review-check">
                   <input type="checkbox" checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} />
                   <span>I reviewed the input, expected output, and source above.</span>
@@ -436,6 +650,13 @@ export function App() {
                   {busy ? "Binding approval…" : "Approve exact payload"}<span aria-hidden="true">→</span>
                 </button>
               </>
+            )}
+            {run?.status === "no_action_required" && (
+              <div className="verified-result">
+                <span className="verified-check" aria-hidden="true">✓</span>
+                <h2>No write proposed.</h2>
+                <p>The supplied misconception corpus has no surviving executable gap. The audit trail records the bounded result.</p>
+              </div>
             )}
             {run?.status === "approved" && receipt && (
               <>
@@ -448,16 +669,31 @@ export function App() {
                 </button>
               </>
             )}
+            {run?.status === "approved" && !receipt && run.analysis?.candidate && (
+              <>
+                <span className="approval-seal" aria-hidden="true">PERSISTED</span>
+                <h2>Approval survived the interruption.</h2>
+                <p>Reissue a short-lived action token for the same exact payload, then resume the idempotent write and read-back.</p>
+                <div className="receipt"><small>APPROVED PAYLOAD</small><code>{shortHash(run.approval_payload_sha256)}</code></div>
+                <button className="primary-action full" type="button" disabled={busy} onClick={() => void issueApproval()}>
+                  {busy ? "Reauthorizing…" : "Reauthorize exact action"}<span aria-hidden="true">→</span>
+                </button>
+              </>
+            )}
             {run?.status === "applying" && (
               <><h2>Reading back the destination…</h2><p>The result is not complete until the written bytes and full rerun agree.</p></>
             )}
             {run?.status === "verified" && (
               <div className="verified-result">
                 <span className="verified-check" aria-hidden="true">✓</span>
-                <h2>Written. Read back. Re-run.</h2>
+                <h2>{run.action_receipt?.kind === "github_pull_request" ? "Draft PR opened. Read back. Re-run." : "Written. Read back. Re-run."}</h2>
                 <p>The destination hash matches the approved payload and all accepted solutions still pass.</p>
                 <div className="receipt"><small>ARTIFACT SHA-256</small><code>{shortHash(run.artifact_sha256)}</code></div>
-                <a className="download-link" href={`/api/runs/${run.id}/artifact`}>Download verified test <span aria-hidden="true">↓</span></a>
+                {run.action_receipt?.external_url ? (
+                  <a className="download-link" href={run.action_receipt.external_url} target="_blank" rel="noreferrer">Open draft pull request <span aria-hidden="true">↗</span></a>
+                ) : (
+                  <a className="download-link" href={`/api/runs/${run.id}/artifact`}>Download verified test <span aria-hidden="true">↓</span></a>
+                )}
               </div>
             )}
           </div>
@@ -490,6 +726,11 @@ export function App() {
         <span>CourseFuzz / execution is the truth engine</span>
         <span>{run ? `run ${run.id.slice(0, 8)}` : "ready for evidence"}</span>
       </footer>
+      <AssignmentImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={handleImported}
+      />
     </main>
   );
 }

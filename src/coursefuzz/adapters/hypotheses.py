@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import os
 from abc import ABC, abstractmethod
+from itertools import permutations, product
 
 from pydantic import BaseModel, Field
 
-from coursefuzz.domain.models import AssignmentSpec, AttackHypothesis, ProgramVariant
+from coursefuzz.domain.models import AssignmentSpec, AttackHypothesis
 
 
 class HypothesisBatch(BaseModel):
@@ -19,12 +20,49 @@ class ModelHypothesis(BaseModel):
     misconception: str
 
 
+class ExistingTestView(BaseModel):
+    inputs: tuple[int, ...]
+    label: str
+
+
+class SurvivorHint(BaseModel):
+    id: str
+    misconception: str
+
+
+class HypothesisContext(BaseModel):
+    """Sanitized, source-free input available to a hypothesis provider."""
+
+    title: str
+    summary: str
+    input_names: tuple[str, ...]
+    domain_min: int
+    domain_max: int
+    existing_tests: tuple[ExistingTestView, ...]
+
+    @classmethod
+    def from_assignment(cls, assignment: AssignmentSpec) -> HypothesisContext:
+        return cls(
+            title=assignment.title,
+            summary=assignment.summary,
+            input_names=assignment.input_names,
+            domain_min=assignment.domain_min,
+            domain_max=assignment.domain_max,
+            existing_tests=tuple(
+                ExistingTestView(inputs=test.inputs, label=test.label)
+                for test in assignment.instructor_tests
+            ),
+        )
+
+
 class HypothesisProvider(ABC):
     mode: str
 
     @abstractmethod
     def propose(
-        self, assignment: AssignmentSpec, survivors: tuple[ProgramVariant, ...]
+        self,
+        context: HypothesisContext,
+        survivors: tuple[SurvivorHint, ...],
     ) -> tuple[AttackHypothesis, ...]:
         raise NotImplementedError
 
@@ -33,23 +71,56 @@ class DeterministicHypothesisProvider(HypothesisProvider):
     mode = "deterministic-fallback"
 
     def propose(
-        self, assignment: AssignmentSpec, survivors: tuple[ProgramVariant, ...]
+        self,
+        context: HypothesisContext,
+        survivors: tuple[SurvivorHint, ...],
     ) -> tuple[AttackHypothesis, ...]:
-        del assignment, survivors
-        examples = (
-            ((5, 5, 8), "Repeat the first side pair.", "pair-order coverage"),
-            (
-                (4, 5, 5),
-                "Move the repeated pair to the last two positions.",
-                "permutation blind spot",
-            ),
-            ((5, 4, 5), "Move the repeated pair to the outer positions.", "permutation blind spot"),
-            (
-                (2, 3, 5),
-                "Probe the equality boundary of the triangle inequality.",
-                "boundary condition",
-            ),
+        del survivors
+        existing = {test.inputs for test in context.existing_tests}
+        candidates: list[tuple[tuple[int, ...], str, str]] = []
+
+        ordered_tests = sorted(
+            context.existing_tests,
+            key=lambda item: (len(set(item.inputs)), item.label),
         )
+        for test in ordered_tests:
+            for permuted in sorted(set(permutations(test.inputs))):
+                if permuted != test.inputs:
+                    candidates.append(
+                        (
+                            permuted,
+                            f"Permute the instructor case labelled '{test.label}'.",
+                            "input-order blind spot",
+                        )
+                    )
+
+        boundaries = sorted(
+            {
+                context.domain_min,
+                context.domain_max,
+                0,
+                max(context.domain_min, min(context.domain_max, 1)),
+            }
+            & set(range(context.domain_min, context.domain_max + 1))
+        )
+        for values in product(boundaries, repeat=len(context.input_names)):
+            candidates.append(
+                (
+                    tuple(values),
+                    "Combine declared domain boundaries across every input position.",
+                    "boundary interaction",
+                )
+            )
+
+        selected: list[tuple[tuple[int, ...], str, str]] = []
+        seen = set(existing)
+        for item in candidates:
+            if item[0] in seen:
+                continue
+            seen.add(item[0])
+            selected.append(item)
+            if len(selected) == 8:
+                break
         return tuple(
             AttackHypothesis(
                 id=f"hypothesis-{index + 1}",
@@ -58,7 +129,7 @@ class DeterministicHypothesisProvider(HypothesisProvider):
                 misconception=misconception,
                 provider="deterministic-fallback",
             )
-            for index, (inputs, rationale, misconception) in enumerate(examples)
+            for index, (inputs, rationale, misconception) in enumerate(selected)
         )
 
 
@@ -72,11 +143,10 @@ class OpenAIHypothesisProvider(HypothesisProvider):
         self.model = model or os.getenv("COURSEFUZZ_MODEL", "gpt-5.6-sol")
 
     def propose(
-        self, assignment: AssignmentSpec, survivors: tuple[ProgramVariant, ...]
+        self,
+        context: HypothesisContext,
+        survivors: tuple[SurvivorHint, ...],
     ) -> tuple[AttackHypothesis, ...]:
-        survivor_context = [
-            {"id": item.id, "misconception": item.misconception} for item in survivors
-        ]
         response = self.client.responses.parse(
             model=self.model,
             reasoning={"effort": "medium"},
@@ -92,16 +162,10 @@ class OpenAIHypothesisProvider(HypothesisProvider):
             ),
             input=json.dumps(
                 {
-                    "assignment": {
-                        "title": assignment.title,
-                        "summary": assignment.summary,
-                        "input_names": assignment.input_names,
-                        "domain": [assignment.domain_min, assignment.domain_max],
-                        "existing_tests": [
-                            test.model_dump(mode="json") for test in assignment.instructor_tests
-                        ],
-                    },
-                    "surviving_misconceptions": survivor_context,
+                    "assignment": context.model_dump(mode="json"),
+                    "surviving_misconceptions": [
+                        item.model_dump(mode="json") for item in survivors
+                    ],
                 },
                 sort_keys=True,
             ),
@@ -129,12 +193,14 @@ class ResilientHypothesisProvider(HypothesisProvider):
         self.fallback = fallback
 
     def propose(
-        self, assignment: AssignmentSpec, survivors: tuple[ProgramVariant, ...]
+        self,
+        context: HypothesisContext,
+        survivors: tuple[SurvivorHint, ...],
     ) -> tuple[AttackHypothesis, ...]:
         try:
-            return self.primary.propose(assignment, survivors)
+            return self.primary.propose(context, survivors)
         except Exception:
-            return self.fallback.propose(assignment, survivors)
+            return self.fallback.propose(context, survivors)
 
 
 def build_hypothesis_provider() -> HypothesisProvider:

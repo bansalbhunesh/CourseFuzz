@@ -6,7 +6,8 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
-from coursefuzz.domain.models import AuditEvent, RunView
+from coursefuzz.domain.models import AssignmentSnapshot, AuditEvent, RunView
+from coursefuzz.security.access import GLOBAL_TENANT, LOCAL_TENANT
 
 
 def _utc_iso() -> str:
@@ -35,7 +36,8 @@ class RunRepository:
                     idempotency_key TEXT NOT NULL UNIQUE,
                     document TEXT NOT NULL,
                     created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    owner_id TEXT NOT NULL DEFAULT 'local-demo'
                 );
                 CREATE TABLE IF NOT EXISTS events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,28 +62,191 @@ class RunRepository:
                     sha256 TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS assignments (
+                    id TEXT PRIMARY KEY,
+                    snapshot_sha256 TEXT NOT NULL UNIQUE,
+                    document TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS assignments_created_at
+                    ON assignments(created_at DESC);
+                CREATE TABLE IF NOT EXISTS assignment_access (
+                    assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+                    tenant_id TEXT NOT NULL,
+                    granted_at TEXT NOT NULL,
+                    PRIMARY KEY (assignment_id, tenant_id)
+                );
+                CREATE INDEX IF NOT EXISTS assignment_access_tenant
+                    ON assignment_access(tenant_id, assignment_id);
                 """
             )
+            run_columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(runs)").fetchall()
+            }
+            if "owner_id" not in run_columns:
+                connection.execute(
+                    "ALTER TABLE runs ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'local-demo'"
+                )
+            connection.execute(
+                "UPDATE runs SET idempotency_key = owner_id || ':' || idempotency_key "
+                "WHERE substr(idempotency_key, 1, length(owner_id) + 1) != owner_id || ':'"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS runs_owner_updated "
+                "ON runs(owner_id, updated_at DESC)"
+            )
+            connection.execute(
+                "INSERT OR IGNORE INTO assignment_access(assignment_id, tenant_id, granted_at) "
+                "SELECT assignments.id, ?, assignments.created_at FROM assignments "
+                "WHERE NOT EXISTS ("
+                "SELECT 1 FROM assignment_access "
+                "WHERE assignment_access.assignment_id = assignments.id)",
+                (LOCAL_TENANT,),
+            )
 
-    def create(self, run: RunView, idempotency_key: str) -> tuple[RunView, bool]:
+    def create_assignment(
+        self,
+        snapshot: AssignmentSnapshot,
+        tenant_id: str = LOCAL_TENANT,
+    ) -> tuple[AssignmentSnapshot, bool]:
         with self._connect() as connection:
             existing = connection.execute(
-                "SELECT document FROM runs WHERE idempotency_key = ?", (idempotency_key,)
+                "SELECT document FROM assignments WHERE snapshot_sha256 = ?",
+                (snapshot.snapshot_sha256,),
+            ).fetchone()
+            if existing:
+                stored = AssignmentSnapshot.model_validate_json(existing["document"])
+                connection.execute(
+                    "INSERT OR IGNORE INTO assignment_access"
+                    "(assignment_id, tenant_id, granted_at) VALUES (?, ?, ?)",
+                    (stored.id, tenant_id, _utc_iso()),
+                )
+                return stored, False
+            existing_id = connection.execute(
+                "SELECT document FROM assignments WHERE id = ?",
+                (snapshot.id,),
+            ).fetchone()
+            if existing_id:
+                stored = AssignmentSnapshot.model_validate_json(existing_id["document"])
+                if stored.provenance != "seeded" or snapshot.provenance != "seeded":
+                    raise ValueError("Assignment ID collision for an immutable manual snapshot")
+                connection.execute(
+                    "UPDATE assignments SET snapshot_sha256 = ?, document = ?, created_at = ? "
+                    "WHERE id = ?",
+                    (
+                        snapshot.snapshot_sha256,
+                        snapshot.model_dump_json(),
+                        snapshot.created_at.isoformat(),
+                        snapshot.id,
+                    ),
+                )
+                connection.execute(
+                    "INSERT OR IGNORE INTO assignment_access"
+                    "(assignment_id, tenant_id, granted_at) VALUES (?, ?, ?)",
+                    (snapshot.id, tenant_id, _utc_iso()),
+                )
+                return snapshot, False
+            connection.execute(
+                "INSERT INTO assignments(id, snapshot_sha256, document, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                (
+                    snapshot.id,
+                    snapshot.snapshot_sha256,
+                    snapshot.model_dump_json(),
+                    snapshot.created_at.isoformat(),
+                ),
+            )
+            connection.execute(
+                "INSERT INTO assignment_access(assignment_id, tenant_id, granted_at) "
+                "VALUES (?, ?, ?)",
+                (snapshot.id, tenant_id, _utc_iso()),
+            )
+        return snapshot, True
+
+    def get_assignment(
+        self,
+        assignment_id: str,
+        tenant_id: str = LOCAL_TENANT,
+    ) -> AssignmentSnapshot | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT assignments.document FROM assignments "
+                "JOIN assignment_access ON assignment_access.assignment_id = assignments.id "
+                "WHERE assignments.id = ? AND assignment_access.tenant_id IN (?, ?) "
+                "ORDER BY assignment_access.tenant_id = ? DESC LIMIT 1",
+                (assignment_id, tenant_id, GLOBAL_TENANT, tenant_id),
+            ).fetchone()
+        return AssignmentSnapshot.model_validate_json(row["document"]) if row else None
+
+    def list_assignments(self, tenant_id: str = LOCAL_TENANT) -> list[AssignmentSnapshot]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT DISTINCT assignments.document, assignments.created_at "
+                "FROM assignments "
+                "JOIN assignment_access ON assignment_access.assignment_id = assignments.id "
+                "WHERE assignment_access.tenant_id IN (?, ?) "
+                "ORDER BY assignments.created_at DESC",
+                (tenant_id, GLOBAL_TENANT),
+            ).fetchall()
+        return [AssignmentSnapshot.model_validate_json(row["document"]) for row in rows]
+
+    def create(
+        self,
+        run: RunView,
+        idempotency_key: str,
+        owner_id: str = LOCAL_TENANT,
+    ) -> tuple[RunView, bool]:
+        scoped_idempotency_key = f"{owner_id}:{idempotency_key}"
+        with self._connect() as connection:
+            existing = connection.execute(
+                "SELECT document FROM runs WHERE idempotency_key = ?",
+                (scoped_idempotency_key,),
             ).fetchone()
             if existing:
                 return RunView.model_validate_json(existing["document"]), False
             now = _utc_iso()
             connection.execute(
-                "INSERT INTO runs(id, idempotency_key, document, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (run.id, idempotency_key, run.model_dump_json(), now, now),
+                "INSERT INTO runs"
+                "(id, idempotency_key, document, created_at, updated_at, owner_id) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (run.id, scoped_idempotency_key, run.model_dump_json(), now, now, owner_id),
             )
         return run, True
 
-    def get(self, run_id: str) -> RunView | None:
+    def get(self, run_id: str, owner_id: str = LOCAL_TENANT) -> RunView | None:
         with self._connect() as connection:
-            row = connection.execute("SELECT document FROM runs WHERE id = ?", (run_id,)).fetchone()
+            row = connection.execute(
+                "SELECT document FROM runs WHERE id = ? AND owner_id = ?",
+                (run_id, owner_id),
+            ).fetchone()
         return RunView.model_validate_json(row["document"]) if row else None
+
+    def list_runs(
+        self,
+        assignment_id: str | None = None,
+        owner_id: str = LOCAL_TENANT,
+    ) -> list[RunView]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT document FROM runs WHERE owner_id = ? ORDER BY created_at DESC",
+                (owner_id,),
+            ).fetchall()
+        runs = [RunView.model_validate_json(row["document"]) for row in rows]
+        if assignment_id is not None:
+            runs = [run for run in runs if run.assignment_id == assignment_id]
+        return runs
+
+    def list_recoverable_runs(self, limit: int = 10) -> list[tuple[str, RunView]]:
+        placeholders = ", ".join("?" for _ in ("queued", "analyzing", "applying"))
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"SELECT owner_id, document FROM runs WHERE json_extract(document, '$.status') "
+                f"IN ({placeholders}) ORDER BY updated_at ASC LIMIT ?",
+                ("queued", "analyzing", "applying", limit),
+            ).fetchall()
+        return [
+            (row["owner_id"], RunView.model_validate_json(row["document"])) for row in rows
+        ]
 
     def save(self, run: RunView) -> None:
         with self._connect() as connection:

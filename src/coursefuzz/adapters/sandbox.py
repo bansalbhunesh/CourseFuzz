@@ -22,6 +22,7 @@ class SubprocessPythonSandbox:
         program: ProgramVariant,
         entrypoint: str,
         tests: tuple[TestCase, ...] | list[TestCase],
+        timeout_seconds: float | None = None,
     ) -> SuiteExecution:
         payload = {
             "source": program.source,
@@ -30,6 +31,7 @@ class SubprocessPythonSandbox:
         }
         environment = {"PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
         creation_flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        timeout = min(timeout_seconds or self.timeout_seconds, self.timeout_seconds)
         try:
             with tempfile.TemporaryDirectory(prefix="coursefuzz-") as workdir:
                 completed = subprocess.run(  # noqa: S603
@@ -39,7 +41,7 @@ class SubprocessPythonSandbox:
                     capture_output=True,
                     cwd=workdir,
                     env=environment,
-                    timeout=self.timeout_seconds,
+                    timeout=max(timeout, 0.01),
                     check=False,
                     creationflags=creation_flags,
                 )
