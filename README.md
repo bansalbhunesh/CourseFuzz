@@ -9,8 +9,9 @@ product minimizes a real counterexample, shows the exact pytest patch, requires 
 approval, writes locally or opens a draft GitHub pull request, reads it back, and reruns the
 entire misconception corpus.
 
-> Status: reproducible local vertical slice. The public deployment and demo video are not yet
-> published, so this repository should not be presented as submission-ready.
+> Status: [public beta on Render](https://coursefuzz.onrender.com) plus a reproducible local
+> vertical slice. The demo video and live GitHub write receipt are not yet published, so this
+> repository should not be presented as submission-ready.
 
 ## The 90-second golden path
 
@@ -113,9 +114,9 @@ docker run --rm -p 8000:8000 coursefuzz
 
 Opaque-key authentication and tenant isolation are implemented for the single-instance slice;
 there is no institutional identity provider, LMS ingestion, PII pipeline, hardened multi-tenant
-sandbox, public deployment, or held-out cross-course benchmark yet. GitHub delivery is implemented
-and contract-tested with a deterministic fake transport, but still needs logged-out proof against
-a dedicated live repository. Hosted Postgres is single-instance demo persistence, and its free
+sandbox, or held-out cross-course benchmark yet. GitHub delivery is implemented and contract-tested
+with a deterministic fake transport, but still needs logged-out proof against a dedicated live
+repository. Hosted Postgres is single-instance demo persistence, and its free
 Render instance expires after 30 days without backups. Synthetic and fallback behavior is visibly
 labelled.
 

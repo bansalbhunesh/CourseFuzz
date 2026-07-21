@@ -5,7 +5,7 @@
     "report": "evaluations/results/frozen-deterministic.json"
   },
   "live_github_receipt_url": null,
-  "public_demo_url": null,
+  "public_demo_url": "https://coursefuzz.onrender.com",
   "public_repository_url": "https://github.com/bansalbhunesh/CourseFuzz",
   "status": "development",
   "video_url": null
