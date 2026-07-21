@@ -27,6 +27,7 @@ Status: `covered`, `bounded`, or `release blocker`.
 | GitHub base drift | Bind approval to the resolved base commit before branch creation | prepared target payload | covered |
 | Frozen-evaluation leakage | Providers receive no source, oracle outputs, witnesses, or thresholds | sanitized context test + post-inference threshold load | covered |
 | Real-course generalization | License-reviewed external corpus and independent human labels | synthetic v1 is not sufficient | release blocker |
+| Missing submission evidence | Fail release if app, video, repo, or live GitHub proof URL is absent | release manifest + submission guard test | covered |
 
 No release should call the project production-ready while any security or public-demo row remains a
 release blocker.

@@ -82,9 +82,13 @@ production hostile-code sandbox.
 .\.venv\Scripts\python -m pytest
 .\.venv\Scripts\python -m ruff check .
 .\.venv\Scripts\python scripts/run_frozen_benchmark.py --no-write
+.\.venv\Scripts\python scripts/release_guard.py
 Set-Location web
 npm run build
 ```
+
+`scripts/release_guard.py --submission` intentionally fails until the public app, video, and live
+GitHub receipt are recorded in `release_manifest.json`; missing proof cannot be silently shipped.
 
 The container serves the compiled frontend and API as one process:
 

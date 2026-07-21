@@ -64,3 +64,29 @@ external benchmark with:
 CodeContests, IntroClass, and Refactory remain candidates, but none are vendored. Their terms,
 task filters, redistribution conditions, and label quality must be verified before use. A second
 human reviewer must sign off the central labels before the public claim is upgraded.
+
+## External-corpus decision record
+
+- **CodeContests — adopt for a non-vendored next evaluation.** The official archived repository
+  provides train/validation/test splits, paired tests, and correct and incorrect human solutions.
+  Its code is Apache-2.0 and non-code material is CC BY 4.0, while its notice explicitly warns that
+  upstream third-party terms can still apply. The full corpus is about 3 GiB in Riegeli format and
+  its supported harness is Linux/Bazel, so CourseFuzz should commit only selection manifests,
+  source URLs, hashes, attribution, and derived aggregate results—not copied submissions.
+  Source: [Google DeepMind CodeContests](https://github.com/google-deepmind/code_contests).
+- **IntroClass — legally clear, product-language mismatch.** The benchmark is BSD-licensed real
+  introductory-course work with defects and test suites, but all six subject programs are C. It is
+  valuable corroborating evidence only after CourseFuzz has a real C execution adapter; adding C
+  solely to inflate the benchmark would distort the shipped Python product.
+  Source: [ManyBugs and IntroClass](https://repairbenchmarks.cs.umass.edu/).
+- **Project CodeNet — reject as the primary oracle corpus.** It has roughly 14 million submissions,
+  rich status metadata, and substantial Python coverage, but the public package generally exposes
+  problem descriptions and sample input/output rather than the online judges' full hidden test
+  suites. Accepted/wrong labels are useful for sampling, but they do not independently reproduce
+  expected outputs for CourseFuzz's counterexamples.
+  Source: [IBM Project CodeNet](https://github.com/IBM/Project_CodeNet).
+- **Refactory — do not redistribute without permission.** The paper reports almost 1,800 real
+  incorrect Python submissions from 361 students, making it the closest conceptual match, but the
+  public record located for this audit provides the paper—not an explicit reusable student-corpus
+  license. CourseFuzz must obtain author/institution permission before using those submissions.
+  Source: [UCL Refactory publication record](https://discovery.ucl.ac.uk/id/eprint/10091878/).

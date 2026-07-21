@@ -19,6 +19,7 @@ jobs:
           cache: pip
       - run: python -m pip install -e '.[dev]'
       - run: python -m ruff check src tests scripts evaluations
+      - run: python scripts/release_guard.py
       - run: python -m pytest --cov=coursefuzz --cov-report=term-missing
 
   frozen-benchmark:
