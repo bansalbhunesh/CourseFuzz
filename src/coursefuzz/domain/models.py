@@ -347,3 +347,37 @@ class ApprovalReceipt(BaseModel):
 
 class ApplyRequest(BaseModel):
     approval_token: str
+
+
+class EvidenceContent(BaseModel):
+    """The hashed body of an evidence bundle: everything a third party needs to re-verify a run.
+
+    Deterministically serialized so ``EvidenceBundle.bundle_sha256`` can be recomputed offline and
+    compared byte-for-byte. Excludes envelope metadata (generation time, the hash itself) so the
+    digest depends only on the evidence, not on when the bundle was produced.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    run: RunView
+    assignment_snapshot_sha256: str | None = None
+    oracle_evidence: dict[str, Any] | None = None
+    artifact_sha256: str | None = None
+    audit_events: tuple[AuditEvent, ...] = ()
+
+
+class EvidenceBundle(BaseModel):
+    """A self-contained, independently re-hashable record of one run's evidence.
+
+    A judge downloads this, recomputes SHA-256 over the canonical JSON of ``content`` (sorted keys,
+    compact separators), and confirms it equals ``bundle_sha256`` — proving the assignment snapshot,
+    oracle provenance, approval, destination read-back receipt, and ordered audit trail were not
+    altered after the fact.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    bundle_version: Literal["coursefuzz-evidence-v1"] = "coursefuzz-evidence-v1"
+    generated_at: datetime
+    bundle_sha256: str
+    content: EvidenceContent

@@ -271,6 +271,28 @@ def build_router(
             },
         )
 
+    @router.get("/runs/{run_id}/evidence")
+    def evidence_bundle(
+        run_id: str,
+        principal: Principal = principal_dependency,
+    ) -> Response:
+        # A downloadable, independently re-hashable record of the run: assignment snapshot,
+        # oracle provenance, approval, destination read-back receipt, and the ordered audit trail.
+        try:
+            bundle = service.build_evidence_bundle(run_id, principal.tenant_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Run not found") from exc
+        return Response(
+            content=bundle.model_dump_json(indent=2),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="coursefuzz-evidence-{run_id}.json"'
+                ),
+                "X-Evidence-SHA256": bundle.bundle_sha256,
+            },
+        )
+
     @router.get("/runs/{run_id}/events")
     async def events(
         run_id: str,

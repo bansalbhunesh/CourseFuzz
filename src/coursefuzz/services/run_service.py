@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +12,8 @@ from coursefuzz.domain.engine import AssessmentEngine
 from coursefuzz.domain.models import (
     ApprovalReceipt,
     AssignmentSpec,
+    EvidenceBundle,
+    EvidenceContent,
     GitHubPullRequestDestination,
     RunStatus,
     RunView,
@@ -448,6 +452,39 @@ class RunService:
         if not run:
             raise KeyError(run_id)
         return run
+
+    def build_evidence_bundle(
+        self, run_id: str, tenant_id: str = LOCAL_TENANT
+    ) -> EvidenceBundle:
+        """Assemble a self-contained, independently re-hashable record of one run's evidence.
+
+        Tenant-scoped: ``require_run`` raises ``KeyError`` for a missing or foreign run. The bundle
+        hash covers only ``content`` (deterministic), so a judge can recompute it offline; the
+        generation timestamp is envelope metadata and is deliberately left out of the digest.
+        """
+        run = self.require_run(run_id, tenant_id)
+        events = tuple(self.repository.events_after(run_id, 0))
+        oracle_evidence = None
+        if run.analysis is not None:
+            raw = run.analysis.evidence.get("oracle_evidence")
+            oracle_evidence = raw if isinstance(raw, dict) else None
+        content = EvidenceContent(
+            run=run,
+            assignment_snapshot_sha256=run.assignment_snapshot_sha256,
+            oracle_evidence=oracle_evidence,
+            artifact_sha256=run.artifact_sha256,
+            audit_events=events,
+        )
+        digest = hashlib.sha256(
+            json.dumps(
+                content.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+        ).hexdigest()
+        return EvidenceBundle(
+            bundle_sha256=digest,
+            generated_at=utc_now(),
+            content=content,
+        )
 
     def _assignment_for_run(
         self,

@@ -735,6 +735,7 @@ export function App() {
             <div className="trace-title">
               <div><span className="section-number">AUDIT TRAIL</span><h2 id="trace-heading">Run evidence</h2></div>
               {run && <span className="live-indicator"><i aria-hidden="true" />{["queued", "analyzing", "applying"].includes(run.status) ? "live" : "persisted"}</span>}
+              {run && <a className="evidence-download" href={`/api/runs/${run.id}/evidence`}>Evidence bundle <span aria-hidden="true">↓</span></a>}
             </div>
             {events.length === 0 ? (
               <p className="empty-trace">The signed sequence of analysis, approval, write, and verification will appear here.</p>
