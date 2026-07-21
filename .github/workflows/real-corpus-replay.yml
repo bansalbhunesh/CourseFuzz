@@ -1,0 +1,23 @@
+name: real-corpus-replay
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frozen-selection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e '.[dev,evaluation]'
+      - run: python scripts/verify_real_manifest.py
+      - name: Regenerate selection from pinned upstream rows
+        run: python scripts/collect_real_corpus.py --check
+      - run: python -m pytest tests/test_real_evaluation.py -v

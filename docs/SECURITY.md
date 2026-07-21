@@ -59,6 +59,7 @@ a description.
 | Cross-tenant isolation | tenant B applies or reads tenant A's run and artifact with a leaked token | `tests/test_tenant_isolation.py` |
 | Execution containment surface | 14 hostile programs: imports, escapes, loops, comprehension, oversized source | `tests/test_hostile_corpus.py` |
 | Full adapter contract | completed, rejected, timed-out, output-limit, and runtime-error outcomes | `tests/test_execution_gateway.py` |
+| Live container containment | memory/thread bombs and root writes under runc and runsc | `tests/test_isolation_abuse.py` |
 | Resumable audit trail | resume from `Last-Event-ID` without replaying the seen prefix | `tests/test_event_stream_resume.py` |
 
 These proofs are guarantees about the product's governance, not about hostile-code containment; the
@@ -69,13 +70,11 @@ latter remains bounded as described below.
 - Authentication uses deployer-issued opaque keys, not an institutional SSO or LMS identity
   provider. Local-demo mode is intentionally unprotected and must not be exposed as a shared
   service.
-- The default analysis path still executes through the restricted local process, which is a
-  source-AST boundary, not a general-purpose hostile-code sandbox. `DockerIsolatedRunner` /
-  `GVisorDockerRunner` now implement the gateway against a no-network container (cap-drop ALL,
-  read-only root, memory/PID ceilings) with gVisor's `runsc` runtime for arbitrary code, and its
-  isolation argv is tested; but it is not yet wired as the default runner, and running genuinely
-  untrusted code additionally requires the `runsc` runtime, seccomp/user-namespace policy, per-run
-  identity, and image provenance.
+- The free Render service still analyzes through the restricted local process, which is a source-AST
+  boundary, not a general-purpose hostile-code sandbox. The separate worker can select the live-tested
+  gVisor backend, but it is not part of `render.yaml`; genuinely untrusted code remains blocked until
+  a runsc-capable worker, signed job/receipt transport, stdin/stdout adapter, and pinned image
+  provenance are deployed.
 - URL/LMS ingestion is not implemented. Any future importer must enforce a domain allowlist,
   robots and license policy, prompt-injection stripping, content hashes, file limits, and code
   quarantine.

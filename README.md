@@ -20,7 +20,8 @@ entire misconception corpus.
 3. Inspect the minimized `(1, 2, 2)` counterexample: expected `isosceles`, observed `scalene`.
 4. Review the exact generated pytest and approve its SHA-256-bound payload.
 5. Apply the patch locally or to a run-specific GitHub branch and draft pull request.
-6. CourseFuzz reads the destination back, reruns every program, and persists the audit receipt.
+6. CourseFuzz reads the destination back, reruns every program, and—for GitHub delivery—waits for
+   the target repository's own CI before persisting a verified audit receipt.
 
 ## Reproducible proof
 
@@ -35,6 +36,10 @@ entire misconception corpus.
   corpus, so the result proves the verified repair loop—not search superiority or real-course
   generalization. On domains this small a random sweep saturates, so the directed selector cannot be
   shown to beat it here; see `docs/NEXT_STEPS.md` ("Gap 3, measured").
+- Real-corpus gate: a non-vendored CodeContests/CodeNet-origin manifest now freezes **20 tasks,
+  500 wrong programs, 40 oracle programs, and 60 accepted holdout controls** with a complete
+  exclusion ledger. It is not yet a scored claim: isolated stdin replay and second review remain
+  required.
 
 ## Quickstart
 
@@ -90,6 +95,7 @@ path exercised live in CI. It is defense-in-depth wiring, not yet the default an
 .\.venv\Scripts\python -m pytest
 .\.venv\Scripts\python -m ruff check .
 .\.venv\Scripts\python scripts/run_frozen_benchmark.py --no-write
+.\.venv\Scripts\python scripts/verify_real_manifest.py
 .\.venv\Scripts\python scripts/release_guard.py
 Set-Location web
 npm run build
@@ -123,7 +129,8 @@ Opaque-key authentication and tenant isolation are implemented for the single-in
 there is no institutional identity provider, LMS ingestion, PII pipeline, or held-out cross-course
 benchmark yet. A no-network container backend (gVisor `runsc`) implements the execution gateway and
 is exercised in CI, but the restricted local runner is still the default analysis path and running
-genuinely untrusted code additionally needs seccomp/user-namespace policy and image provenance.
+genuinely untrusted code additionally needs the stdin/stdout adapter, a deployed runsc worker,
+signed job/receipt transport, and pinned image provenance.
 GitHub delivery is implemented and contract-tested
 with a deterministic fake transport, but still needs logged-out proof against a dedicated live
 repository. Hosted Postgres is single-instance demo persistence, and its free
