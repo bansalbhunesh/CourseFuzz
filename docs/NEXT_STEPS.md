@@ -126,6 +126,92 @@ This separation makes the demo safe and legible: the first repository proves the
 governance, while the second proves a real external write without risking the product source or a
 real course.
 
+## Next-level execution ladder
+
+Use this ladder as the short operational plan. The detailed milestones below define the engineering
+requirements; this section defines what to do next and what evidence permits the project to advance.
+Do not work on two levels at once when the earlier level's proof is incomplete.
+
+| Level | Outcome | First concrete move | Exit evidence |
+| --- | --- | --- | --- |
+| 0. Release proof | A judge can reproduce the complete hosted action loop. | Run the deployed two-repository flow against Demo-Target. | Public draft PR, passing target CI, read-back receipt, video, and passing submission guard. |
+| 1. Safe execution | Student code no longer runs inside the API container. | Introduce `ExecutionGateway` and one remote no-network sandbox adapter. | Hostile-program corpus passes and every execution has a runtime-pinned receipt. |
+| 2. Trustworthy truth | Correctness does not depend on two programs sharing the same bug. | Add `OracleDecision` plus reference, property, fixture, and consensus adapters. | Disagreement causes abstention and every expected output links to evidence. |
+| 3. Real evidence | Claims extend beyond the authored synthetic corpus. | Build a licensed, non-vendored manifest for a held-out Python corpus. | Independent scorer, second reviewer, hashes, confidence intervals, and replayable results. |
+| 4. Better search | CourseFuzz demonstrates an advantage over equal-budget baselines. | Add a shared candidate budget and survivor-disagreement generator. | Higher recall at equal cost, or equal recall with fewer executions, without more false kills. |
+| 5. Real instructor workflow | A teacher connects a repository without copying JSON or tokens. | Replace the shared token with a repository-scoped GitHub App importer. | Install, analyze, approve, draft PR, external CI read-back, and recovery all work end to end. |
+| 6. Durable service | Multiple courses and workers preserve exactly-once business effects. | Add migrations, a transactional outbox, leased jobs, and immutable object storage. | Multi-instance chaos test and backup/restore exercise pass. |
+| 7. Validated product | Instructors can make safe decisions without coaching. | Run five observed usability sessions on the evidence-to-approval flow. | Reviewed findings become measured product changes; keyboard, mobile, and AA gates pass. |
+
+### Immediate queue: finish Level 0
+
+Perform these tasks in order. Each task should produce a link or committed artifact, not only a
+verbal claim.
+
+1. **Create the live GitHub receipt.** Import the seeded triangle manifest with the Demo-Target
+   destination shown above, run analysis on the public deployment, review the minimized case and
+   exact pytest, approve it, and apply it. Confirm the UI ends in `verified` with a GitHub PR URL and
+   `read_back_verified: true` in the persisted receipt.
+2. **Verify the second repository independently.** Open the draft PR while logged out, check that it
+   changes only one file below `tests/coursefuzz/`, confirm its base is Demo-Target `main`, and wait
+   for the Demo-Target pytest workflow to pass. Preserve the PR URL and Actions URL.
+3. **Commit the external evidence.** Set `live_github_receipt_url` in `release_manifest.json`. Add
+   only a concise receipt reference to the README; do not paste credentials, student data, or a
+   mutable dashboard-only link.
+4. **Record the demo.** Follow `docs/DEMO_RUNBOOK.md`, keep the recording between 2:50 and 2:55,
+   include burned and platform captions, show the actual approval-to-PR transition, test it muted
+   and on a phone, and publish the stable video URL.
+5. **Close the release gate.** Set `video_url`, change the manifest status to `submission-ready`, run
+   `python scripts/release_guard.py --submission`, run the complete CI suite, and verify the public
+   app, repository, video, and PR links from a clean logged-out environment.
+6. **Freeze and tag.** Stop risky feature work, create the demo release tag only from the exact green
+   deployed commit, record the Render commit receipt, and allow only verified P0 fixes or submission
+   artifact corrections afterward.
+
+Level 0 is blocked if the PR is mocked, the generated file differs from the approved payload, target
+CI is red, any public link requires the owner's session, or the video hides a failed/retried action.
+
+### First engineering queue after release proof
+
+Once Level 0 passes, create the following implementation issues in this order:
+
+1. **Version the execution boundary.** Add typed `ExecutionRequest` and `ExecutionResult` models,
+   move the current runner behind `ExecutionGateway`, and make the existing local adapter pass a
+   shared contract suite without changing behavior.
+2. **Add the remote sandbox adapter.** Run one execution batch per ephemeral no-network sandbox;
+   enforce CPU, wall, memory, PID, filesystem, and output limits outside the guest; persist the
+   runtime image digest and termination reason.
+3. **Commit the hostile-program corpus.** Cover infinite loops, process and memory growth, large
+   output, filesystem traversal, environment reads, socket attempts, interpreter crashes, and
+   cancellation. No untrusted-code claim is allowed until this corpus passes in deployment.
+4. **Introduce `OracleDecision`.** Preserve the current consensus behavior as one adapter, add
+   reference/property/fixture adapters, and expose abstention and provenance in the UI and audit.
+5. **Version assignment invocation.** Add callable and stdin/stdout modes, input/output schemas,
+   runtime pins, migrations, and replay tests before selecting a real external corpus.
+6. **Build the leakage-resistant scorer.** Separate candidate generation from hidden scoring,
+   freeze task selection and labels, record licenses and hashes, and require a second reviewer.
+7. **Add equal-budget search accounting.** Deduplicate candidates across generators, charge every
+   execution to one ledger, record seeds, and publish ablations before claiming superiority.
+8. **Replace the demo token with a GitHub App.** Scope installations per repository, import an
+   immutable course commit, consume webhook delivery IDs idempotently, and wait for target CI before
+   declaring the external action verified.
+
+For each issue, require: a user-visible outcome, typed contract changes, failure and recovery states,
+unit plus integration coverage, one end-to-end acceptance test, security impact, evaluation impact,
+documentation updates, and an explicit non-goal. Reject an issue that cannot be demonstrated or
+verified independently.
+
+### Decision rules for adding breadth
+
+- Do not add Java, C++, an LMS, analytics pages, more agents, or multi-user administration while
+  execution isolation, oracle provenance, and real-corpus evidence remain below their gates.
+- If the real evaluation still ties random search, keep the product positioned as a verified repair
+  workflow; prioritize the scheduler and candidate generators rather than marketing a false win.
+- Prefer a dated instructor review, changed decision, or signed label set over another speculative
+  feature.
+- Re-run the prior level's acceptance suite after every architecture change. A higher level cannot
+  invalidate the evidence that justified the previous one.
+
 ## Milestone 0 — finish the public proof loop
 
 Purpose: turn the existing implementation into judge-verifiable evidence before changing the core.
