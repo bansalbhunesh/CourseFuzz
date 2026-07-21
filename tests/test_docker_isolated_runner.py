@@ -223,6 +223,19 @@ def _docker_image_ready() -> bool:
         return False
 
 
+def _gvisor_ready() -> bool:
+    if not _docker_image_ready():
+        return False
+    try:
+        info = subprocess.run(
+            ["docker", "info", "--format", "{{range $k,$v := .Runtimes}}{{$k}} {{end}}"],
+            capture_output=True, text=True, timeout=15,
+        )
+        return "runsc" in info.stdout.split()
+    except Exception:
+        return False
+
+
 @pytest.mark.skipif(
     not _docker_image_ready(),
     reason="requires a running Docker daemon and a built coursefuzz:local image",
@@ -280,3 +293,21 @@ def test_run_suite_executes_in_a_real_container() -> None:
     assert suite.all_passed
     assert suite.passed == 1
     assert suite.failed == 0
+
+
+@pytest.mark.skipif(
+    not _gvisor_ready(),
+    reason="requires the runsc (gVisor) runtime registered with Docker and the image",
+)
+def test_gvisor_runtime_executes_in_a_real_container() -> None:
+    """The production target runs end to end under gVisor's runsc runtime. Skips unless runsc is
+    installed (it is on the CI isolated-runner job); the argv contract is asserted unconditionally.
+    """
+
+    runner = GVisorDockerRunner()
+
+    result = runner.execute(_request())
+
+    assert result.outcome is ExecutionOutcome.COMPLETED
+    assert result.passed == 1
+    assert result.receipt.runtime == "docker/runsc:coursefuzz:local"
