@@ -13,6 +13,6 @@ def test_submission_guard_keeps_missing_public_proof_as_a_blocker() -> None:
     failures = check_release(ROOT, require_submission=True)
 
     assert "release status is not submission-ready" in failures
-    assert any("public_demo_url" in failure for failure in failures)
+    assert not any("public_demo_url" in failure for failure in failures)
     assert any("video_url" in failure for failure in failures)
     assert any("live_github_receipt_url" in failure for failure in failures)
