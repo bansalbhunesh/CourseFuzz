@@ -92,3 +92,35 @@ def test_assignment_preflight_rejects_a_broken_accepted_control(tmp_path: Path) 
 
     assert response.status_code == 422
     assert "accepted control" in response.json()["detail"]
+
+
+def test_assignment_preflight_rejects_byte_identical_controls(tmp_path: Path) -> None:
+    """The oracle's guarantee is that two *independent* controls agree. Two byte-identical
+    controls would make that agreement trivial and meaningless, so ingestion must refuse them.
+    """
+
+    client = build_client(tmp_path)
+    payload = triangle_payload()
+    # Make a supposedly independent accepted control identical to the reference source.
+    payload["accepted_solutions"][0]["source"] = payload["reference"]["source"]
+
+    response = client.post("/api/assignments", json=payload)
+
+    assert response.status_code == 422
+    assert "distinct source code" in response.json()["detail"]
+
+
+def test_cosmetic_reformatting_cannot_fabricate_an_independent_control(tmp_path: Path) -> None:
+    """Sources are normalized before the distinctness check, so an "independent" control that
+    differs from the reference only in trailing whitespace or blank lines cannot slip past the
+    guard and fake oracle independence.
+    """
+
+    client = build_client(tmp_path)
+    payload = triangle_payload()
+    payload["accepted_solutions"][0]["source"] = payload["reference"]["source"] + "\n\n   \n"
+
+    response = client.post("/api/assignments", json=payload)
+
+    assert response.status_code == 422
+    assert "distinct source code" in response.json()["detail"]

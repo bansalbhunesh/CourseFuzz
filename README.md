@@ -74,8 +74,12 @@ React proof sheet -> typed FastAPI route -> RunService -> AssessmentEngine
 
 Approval is required before the only consequential write. The token is bound to the exact
 payload hash. A run reaches `verified` only after destination read-back and a complete regression
-rerun match the approved projection. The Python runner is deliberately limited and is **not** a
-production hostile-code sandbox.
+rerun match the approved projection. The default Python runner is deliberately limited and is
+**not** a production hostile-code sandbox; a no-network container backend
+(`DockerIsolatedRunner`/`GVisorDockerRunner`, `--network none`, dropped capabilities, read-only
+root) implements the same execution gateway and runs on a separate worker
+(`python -m coursefuzz.worker`, `COURSEFUZZ_EXECUTION_BACKEND=gvisor`), with its gVisor `runsc`
+path exercised live in CI. It is defense-in-depth wiring, not yet the default analysis path.
 
 ## Verify locally
 
@@ -113,8 +117,11 @@ docker run --rm -p 8000:8000 coursefuzz
 ## Current limitations
 
 Opaque-key authentication and tenant isolation are implemented for the single-instance slice;
-there is no institutional identity provider, LMS ingestion, PII pipeline, hardened multi-tenant
-sandbox, or held-out cross-course benchmark yet. GitHub delivery is implemented and contract-tested
+there is no institutional identity provider, LMS ingestion, PII pipeline, or held-out cross-course
+benchmark yet. A no-network container backend (gVisor `runsc`) implements the execution gateway and
+is exercised in CI, but the restricted local runner is still the default analysis path and running
+genuinely untrusted code additionally needs seccomp/user-namespace policy and image provenance.
+GitHub delivery is implemented and contract-tested
 with a deterministic fake transport, but still needs logged-out proof against a dedicated live
 repository. Hosted Postgres is single-instance demo persistence, and its free
 Render instance expires after 30 days without backups. Synthetic and fallback behavior is visibly

@@ -37,14 +37,43 @@
 - Hosted deployments select Postgres through `DATABASE_URL`; local artifact bytes are copied into
   the database so workflow evidence does not depend on the web container's transient filesystem.
 
+## Adversarially verified guarantees
+
+Each property below is proven by a committed test that constructs the attack and asserts the system
+refuses it. These are the claims most worth probing, so each has an executable proof rather than only
+a description.
+
+| Guarantee | What the test attacks | Test |
+| --- | --- | --- |
+| No fabricated findings | independent controls disagree on the divergent region; out-of-domain hypothesis | `tests/test_oracle_abstention.py` |
+| Oracle independence is real | byte-identical, and whitespace-only-different, "independent" controls | `tests/test_assignment_ingestion.py` |
+| A verified write means the exact bytes are present | destination returns tampered read-back bytes | `tests/test_github_destination.py` |
+| Local writes cannot escape the run directory | patch target carries a traversing path | `tests/test_github_destination.py` |
+| The external write is idempotent on retry | run branch, draft PR, and file already exist | `tests/test_github_destination.py` |
+| Approval binds the exact payload | stale hash, forged token, rotated token, replay after verify | `tests/test_approval_binding.py` |
+| No false "verified" | post-write metrics diverge from the approved projection | `tests/test_approval_binding.py` |
+| Exactly-once under interruption | crash after consuming the approval, then retry | `tests/test_recovery.py` |
+| Snapshot immutability | a run bound to a hash the assignment no longer resolves to | `tests/test_snapshot_immutability.py` |
+| Cross-tenant isolation | tenant B applies or reads tenant A's run and artifact with a leaked token | `tests/test_tenant_isolation.py` |
+| Execution containment surface | 14 hostile programs: imports, escapes, loops, comprehension, oversized source | `tests/test_hostile_corpus.py` |
+| Full adapter contract | completed, rejected, timed-out, output-limit, and runtime-error outcomes | `tests/test_execution_gateway.py` |
+| Resumable audit trail | resume from `Last-Event-ID` without replaying the seen prefix | `tests/test_event_stream_resume.py` |
+
+These proofs are guarantees about the product's governance, not about hostile-code containment; the
+latter remains bounded as described below.
+
 ## Deliberate limitations
 
 - Authentication uses deployer-issued opaque keys, not an institutional SSO or LMS identity
   provider. Local-demo mode is intentionally unprotected and must not be exposed as a shared
   service.
-- The restricted Python process is not a general-purpose hostile-code sandbox. Production needs
-  a container or microVM with no network, read-only root, cgroup quotas, seccomp, and per-run
-  identity.
+- The default analysis path still executes through the restricted local process, which is a
+  source-AST boundary, not a general-purpose hostile-code sandbox. `DockerIsolatedRunner` /
+  `GVisorDockerRunner` now implement the gateway against a no-network container (cap-drop ALL,
+  read-only root, memory/PID ceilings) with gVisor's `runsc` runtime for arbitrary code, and its
+  isolation argv is tested; but it is not yet wired as the default runner, and running genuinely
+  untrusted code additionally requires the `runsc` runtime, seccomp/user-namespace policy, per-run
+  identity, and image provenance.
 - URL/LMS ingestion is not implemented. Any future importer must enforce a domain allowlist,
   robots and license policy, prompt-injection stripping, content hashes, file limits, and code
   quarantine.

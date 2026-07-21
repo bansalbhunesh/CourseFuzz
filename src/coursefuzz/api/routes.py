@@ -185,7 +185,9 @@ def build_router(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        if created:
+        # When a separate execution worker is deployed, defer analysis to it: the run stays
+        # queued and a worker claims it. Default keeps the API's inline analysis for the demo.
+        if created and os.getenv("COURSEFUZZ_DEFER_ANALYSIS") != "1":
             background_tasks.add_task(service.analyze_run, run.id, principal.tenant_id)
         return run
 

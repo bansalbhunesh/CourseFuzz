@@ -92,3 +92,33 @@ jobs:
       - name: Stop production image
         if: always()
         run: docker rm --force coursefuzz-ci
+
+  isolated-runner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e '.[dev]'
+      - name: Install gVisor (runsc) and register the Docker runtime
+        run: |
+          set -euo pipefail
+          ARCH=$(uname -m)
+          URL="https://storage.googleapis.com/gvisor/releases/release/latest/${ARCH}"
+          wget --quiet \
+            "${URL}/runsc" "${URL}/runsc.sha512" \
+            "${URL}/containerd-shim-runsc-v1" "${URL}/containerd-shim-runsc-v1.sha512"
+          sha512sum -c runsc.sha512 -c containerd-shim-runsc-v1.sha512
+          chmod +x runsc containerd-shim-runsc-v1
+          sudo mv runsc containerd-shim-runsc-v1 /usr/local/bin/
+          sudo /usr/local/bin/runsc install
+          sudo systemctl reload docker || sudo systemctl restart docker
+      - name: Verify the runsc runtime is registered
+        run: docker info --format '{{range $k,$v := .Runtimes}}{{$k}} {{end}}' | grep -qw runsc
+      - name: Build the execution image
+        run: docker build --tag coursefuzz:local .
+      - name: Run isolated-runner tests (runc and runsc live)
+        run: python -m pytest tests/test_docker_isolated_runner.py -v
