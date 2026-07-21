@@ -90,22 +90,28 @@ class AssessmentEngine:
                 evidence=self._evidence(assignment, verdicts, finding=False),
             )
 
-        winner = max(
-            verified,
-            key=lambda item: (
-                len(item.killed_mutants),
-                tuple(-value for value in item.hypothesis.inputs),
-            ),
-        )
-        target = self._program_by_id(survivors, winner.killed_mutants[0])
-        minimized_inputs = self._minimize(assignment, target, deadline)
+        # A provider hypothesis verified a real gap; now select the single input that discriminates
+        # the MOST surviving mutants, rather than minimizing one winner toward its smallest input
+        # (which discards coverage). This is feedback-directed, not blind: it reads survivor outputs
+        # across the bounded domain and maximizes kills, oracle-backed, tie-broken toward smallness.
+        directed = self._directed_counterexample(assignment, survivors, deadline)
+        if directed is None:
+            return AnalysisResult(
+                before=before,
+                projected_after=before,
+                survivors_before=tuple(item.id for item in survivors),
+                hypothesis_verdicts=verdicts,
+                evidence=self._evidence(assignment, verdicts, finding=False),
+            )
+        minimized_inputs, scanned_expected, scanned_kills = directed
         decision = self._oracle_decision(assignment, minimized_inputs, deadline)
-        if decision.expected is None:
+        if decision.expected is None or decision.expected != scanned_expected:
             raise ValueError("Independent accepted solutions did not agree on the minimized input")
+        target = self._program_by_id(survivors, scanned_kills[0])
         minimized = TestCase(
             inputs=minimized_inputs,
             expected=decision.expected,
-            label=f"CourseFuzz regression: {winner.hypothesis.misconception}",
+            label=f"CourseFuzz regression: {target.misconception}",
             source="minimized",
         )
         killed_mutants: list[str] = []
@@ -275,36 +281,68 @@ class AssessmentEngine:
     ) -> JsonAtom | None:
         return self._oracle_decision(assignment, inputs, deadline).expected
 
-    def _minimize(
+    def _directed_counterexample(
         self,
         assignment: AssignmentSpec,
-        target: ProgramVariant,
+        survivors: tuple[ProgramVariant, ...],
         deadline: float,
-    ) -> tuple[int, ...]:
-        values = range(assignment.domain_min, assignment.domain_max + 1)
-        candidates = sorted(
-            itertools.product(values, repeat=len(assignment.input_names)),
+    ) -> tuple[tuple[int, ...], JsonAtom, tuple[str, ...]] | None:
+        """Pick the oracle-resolved input that discriminates the most surviving mutants.
+
+        Feedback-directed selection: read every survivor's output across the whole bounded domain
+        with one batched execution per program, then choose the input that kills the most survivors,
+        breaking ties toward the smallest, most legible input (so it is minimal within its coverage
+        class). This replaces "verify a blind winner, then minimize toward one target" — minimizing
+        for smallness can shed coverage a maximally-discriminating input would have kept. Returns
+        None only if no resolved input discriminates any survivor; the verified-hypothesis gate in
+        ``analyze`` already guarantees that cannot happen, so this is a fail-closed guard.
+        """
+        domain = sorted(
+            itertools.product(
+                range(assignment.domain_min, assignment.domain_max + 1),
+                repeat=len(assignment.input_names),
+            ),
             key=lambda item: (
                 sum(abs(value) for value in item),
                 max(abs(value) for value in item),
                 item,
             ),
         )
-        for inputs in candidates:
-            expected = self._consensus_expected(assignment, inputs, deadline)
-            if expected is None:
-                continue
-            test = TestCase(
-                inputs=inputs,
-                expected=expected,
-                label="minimization probe",
-                source="deterministic",
+        probe_tests = tuple(
+            TestCase(inputs=inputs, expected=None, label="coverage probe", source="deterministic")
+            for inputs in domain
+        )
+        probe_programs = (*assignment.accepted_solutions, *survivors)
+        executions = self._run_suite_batch(
+            probe_programs, assignment.entrypoint, probe_tests, deadline
+        )
+        outputs: dict[str, dict[tuple[int, ...], JsonAtom | None]] = {}
+        for program, execution in zip(probe_programs, executions, strict=True):
+            row: dict[tuple[int, ...], JsonAtom | None] = {}
+            for entry in execution.outputs:
+                actual = entry.get("actual")
+                row[tuple(entry.get("inputs", ()))] = (
+                    actual if isinstance(actual, (str, int, float, bool)) else None
+                )
+            outputs[program.id] = row
+
+        best: tuple[tuple[int, ...], JsonAtom, tuple[str, ...]] | None = None
+        for inputs in domain:
+            decision = self.oracle.decide(
+                assignment,
+                inputs,
+                lambda program, _inputs=inputs: outputs.get(program.id, {}).get(_inputs),
             )
-            if not self._run_suite(
-                target, assignment.entrypoint, (test,), deadline
-            ).all_passed:
-                return tuple(inputs)
-        raise ValueError("Could not minimize the verified counterexample")
+            if not decision.resolved or decision.expected is None:
+                continue
+            killed = tuple(
+                survivor.id
+                for survivor in survivors
+                if outputs.get(survivor.id, {}).get(inputs) != decision.expected
+            )
+            if killed and (best is None or len(killed) > len(best[2])):
+                best = (inputs, decision.expected, killed)
+        return best
 
     def _run_suite(
         self,
