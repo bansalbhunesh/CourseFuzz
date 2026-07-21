@@ -67,9 +67,13 @@ latter remains bounded as described below.
 - Authentication uses deployer-issued opaque keys, not an institutional SSO or LMS identity
   provider. Local-demo mode is intentionally unprotected and must not be exposed as a shared
   service.
-- The restricted Python process is not a general-purpose hostile-code sandbox. Production needs
-  a container or microVM with no network, read-only root, cgroup quotas, seccomp, and per-run
-  identity.
+- The default analysis path still executes through the restricted local process, which is a
+  source-AST boundary, not a general-purpose hostile-code sandbox. `DockerIsolatedRunner` /
+  `GVisorDockerRunner` now implement the gateway against a no-network container (cap-drop ALL,
+  read-only root, memory/PID ceilings) with gVisor's `runsc` runtime for arbitrary code, and its
+  isolation argv is tested; but it is not yet wired as the default runner, and running genuinely
+  untrusted code additionally requires the `runsc` runtime, seccomp/user-namespace policy, per-run
+  identity, and image provenance.
 - URL/LMS ingestion is not implemented. Any future importer must enforce a domain allowlist,
   robots and license policy, prompt-injection stripping, content hashes, file limits, and code
   quarantine.

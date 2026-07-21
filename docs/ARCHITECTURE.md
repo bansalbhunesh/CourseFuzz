@@ -11,7 +11,8 @@ React proof sheet (evidence, exact approval, live/resumable audit trace)
       -> HypothesisProvider (GPT-5.6 or deterministic fallback)
       -> ExecutionGateway (versioned ExecutionRequest -> ExecutionResult + runtime-pinned receipt)
         -> LocalRestrictedRunner (restricted syntax, total deadline; development only)
-        -> RemoteIsolatedRunner (no-network hardened sandbox; production — Milestone 1)
+        -> DockerIsolatedRunner (no-network container: cap-drop ALL, read-only root, mem/PID limits)
+          -> GVisorDockerRunner (runtime="runsc"; syscall-filtering sandbox for arbitrary code)
     -> DestinationCoordinator
       -> local artifact adapter
       -> GitHub branch + draft-PR adapter
@@ -34,9 +35,15 @@ Execution runs behind a single domain protocol, `ExecutionGateway`, which turns 
 `LocalRestrictedRunner`: it accepts a small Python subset and starts a fresh `python -I` process
 with a 1.5-second total deadline and an output ceiling enforced out-of-process. This is suitable
 for the seeded demonstration and its containment surface is locked by `tests/test_hostile_corpus.py`,
-but it is a source-AST boundary, not hostile-code isolation. A production multi-tenant service must
-add a `RemoteIsolatedRunner` (no network, hardened container or microVM) behind the same gateway; it
-will reuse the shared adapter contract suite in `tests/test_execution_gateway.py` unchanged.
+but it is a source-AST boundary, not hostile-code isolation. `DockerIsolatedRunner` implements the
+same gateway against a throwaway container that disables the network, drops all capabilities, mounts
+a read-only root, and enforces memory/PID ceilings out of the guest; `GVisorDockerRunner` selects
+gVisor's `runsc` runtime, the syscall-filtering boundary appropriate for genuinely untrusted code.
+The container's isolation posture lives entirely in its `docker run` argv and is asserted by
+`tests/test_docker_isolated_runner.py`; a daemon-gated test runs it end to end. The container adapter
+is not yet the default analysis path — the engine still executes through the local runner — so this
+is defense-in-depth wiring, and running arbitrary (non-restricted) code additionally needs the
+`runsc` runtime, seccomp/user-namespace policy, and image provenance.
 
 ## Workflow states
 
