@@ -106,6 +106,7 @@ docker run --rm -p 8000:8000 coursefuzz
 - [Deployment](docs/DEPLOYMENT.md) — canonical container contract and clean smoke gate
 - [Edge-case matrix](docs/EDGE_CASE_MATRIX.md) — covered, bounded, and release-blocking cases
 - [Demo runbook](docs/DEMO_RUNBOOK.md) — the 2:50–2:55 recording script
+- [Deepening plan](docs/NEXT_STEPS.md) — gated roadmap from public proof to safe real-course use
 - [Design context](.impeccable.md) — audience, brand, visual direction, and accessibility rules
 
 ## Current limitations
