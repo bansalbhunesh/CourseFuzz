@@ -45,6 +45,12 @@ is not yet the default analysis path — the engine still executes through the l
 is defense-in-depth wiring, and running arbitrary (non-restricted) code additionally needs the
 `runsc` runtime, seccomp/user-namespace policy, and image provenance.
 
+A separate worker (`python -m coursefuzz.worker`, backend chosen by
+`COURSEFUZZ_EXECUTION_BACKEND=local|docker|gvisor`) claims queued runs from the shared repository
+and analyzes them on the selected backend, reusing the tested `recover_incomplete_runs` claim loop.
+This is how isolated execution runs off the API process; deploy the API with
+`COURSEFUZZ_DEFER_ANALYSIS=1` so runs stay queued for the worker.
+
 ## Workflow states
 
 ```text
