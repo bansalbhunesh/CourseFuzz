@@ -218,3 +218,27 @@ def test_container_executes_a_completed_batch_end_to_end() -> None:
     assert result.passed == 1
     assert result.failed == 0
     assert result.receipt.runtime == "docker/default:coursefuzz:local"
+
+
+@pytest.mark.skipif(
+    not _docker_image_ready(),
+    reason="requires a running Docker daemon and a built coursefuzz:local image",
+)
+def test_no_network_flag_actually_denies_network() -> None:
+    """Prove the isolation is real, not just declared: a socket attempt inside a --network none
+    container fails. This checks the flag the argv test asserts actually isolates on the host.
+    """
+
+    probe = "import socket; socket.create_connection(('1.1.1.1', 53), timeout=3)"
+    completed = subprocess.run(  # noqa: S603
+        [
+            "docker", "run", "--rm", "--network", "none",
+            "--entrypoint", "python", "coursefuzz:local", "-c", probe,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert completed.returncode != 0  # the connection could not be established
+    assert "unreachable" in completed.stderr.lower() or "network" in completed.stderr.lower()
