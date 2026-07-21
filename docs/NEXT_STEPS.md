@@ -29,17 +29,116 @@ The next work must close three honest gaps:
 3. Deterministic CourseFuzz ties an equal-budget random-8 baseline, so search superiority is not
    established.
 
+## How the two repositories connect
+
+CourseFuzz uses two repositories on purpose. They are connected at runtime through the GitHub API,
+not through a Git submodule, package dependency, shared checkout, or workflow token.
+
+| Repository | Responsibility | Must not do |
+| --- | --- | --- |
+| [`bansalbhunesh/CourseFuzz`](https://github.com/bansalbhunesh/CourseFuzz) | Product source, product CI, Render deployment definition, analysis engine, approvals, Postgres audit trail, and GitHub destination adapter. Render deploys this repository's `main` branch. | It must not receive generated demo patches or contain the GitHub write credential. |
+| [`bansalbhunesh/CourseFuzz-Demo-Target`](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target) | Disposable public autograder target containing `solution.py`, the original instructor suite, and its own pytest workflow. It receives only run-specific branches and draft pull requests under `tests/coursefuzz/`. | It must not contain CourseFuzz secrets, real student data, or production course material. |
+
+The two CI paths are independent:
+
+```text
+CourseFuzz main -> CourseFuzz CI -> Render auto-deploy -> public CourseFuzz service
+                                                        |
+                                                        | approved GitHub API write
+                                                        v
+Demo-Target main <- draft PR <- coursefuzz/<run>-<patch> branch
+       |
+       `-> Demo-Target pytest CI validates the proposed autograder test
+```
+
+### Runtime configuration
+
+The Render service holds the integration credentials. They are never sent to the browser or stored
+inside an assignment manifest:
+
+- `COURSEFUZZ_GITHUB_TOKEN` is a fine-grained token limited to
+  `bansalbhunesh/CourseFuzz-Demo-Target`, with `Contents: write` and
+  `Pull requests: write`.
+- `COURSEFUZZ_GITHUB_ALLOWED_REPOS` is independently set to exactly
+  `bansalbhunesh/CourseFuzz-Demo-Target`. The adapter fails closed even if a broader token is
+  accidentally supplied.
+- `/api/health` reports `github_destination: configured` without exposing either value.
+
+An imported assignment selects the second repository with this destination contract:
+
+```json
+{
+  "destination": {
+    "kind": "github_pull_request",
+    "repository": "bansalbhunesh/CourseFuzz-Demo-Target",
+    "base_branch": "main",
+    "test_directory": "tests/coursefuzz"
+  }
+}
+```
+
+The assignment entrypoint must match the target repository's `solution.py`. For the seeded demo it
+is `classify_triangle`, so a generated file imports `classify_triangle` from `solution` and can run
+inside the target repository's existing pytest workflow.
+
+### Exact write and verification sequence
+
+1. CourseFuzz analyzes the immutable assignment snapshot and independently executes accepted and
+   misconception programs. GitHub receives nothing during analysis.
+2. Before showing the approval action, the destination adapter reads Demo-Target's current `main`
+   SHA. It derives a run-specific branch named `coursefuzz/<run-id>-<patch-suffix>` and binds the
+   repository, base branch, base commit, head branch, file path, generated pytest bytes, and affected
+   misconceptions into the approval payload hash.
+3. The instructor reviews and approves that exact hash. Changing the test or destination requires a
+   new approval.
+4. CourseFuzz creates the bound branch from the recorded base commit, writes one generated file such
+   as `tests/coursefuzz/test_coursefuzz_classify_triangle_<case>.py`, and opens a **draft** pull
+   request. It never pushes to Demo-Target `main` and never merges the PR.
+5. The adapter reads the file back from the run-specific GitHub branch, compares the exact bytes,
+   computes the SHA-256 receipt, reruns the full misconception corpus and accepted controls, and
+   persists the PR URL, commit information, artifact hash, and ordered audit events in Postgres.
+6. Demo-Target's separate `pull_request` workflow runs `python -m pytest`. Today that CI result is
+   visible on GitHub but is not yet read back by CourseFuzz; waiting for and persisting the target CI
+   conclusion is a Milestone 5 requirement. A successful destination receipt currently proves the
+   exact GitHub bytes and CourseFuzz's own rerun, not the external Actions conclusion.
+
+Retries are bounded and idempotent at the destination boundary: if the run branch or draft PR
+already exists, CourseFuzz reuses it, converges the run-specific target file to the approved bytes,
+and requires the same final read-back check. It does not modify other files or merge the branch.
+
+### Live proof checklist
+
+The two-repository connection is release-proven only when all of the following are captured:
+
+1. The public CourseFuzz health receipt names the deployed `main` commit and reports GitHub as
+   configured.
+2. A deployed run targets the exact Demo-Target repository and shows its base commit before
+   approval.
+3. The approved action creates a run-specific branch and draft PR in Demo-Target.
+4. The generated file in that branch byte-matches the approved payload and the persisted audit
+   receipt has `read_back_verified: true`.
+5. Demo-Target pytest CI passes on the draft PR.
+6. The public PR URL is recorded as `live_github_receipt_url` in `release_manifest.json`; the demo
+   video shows the CourseFuzz approval and the corresponding GitHub PR without editing away the
+   transition.
+
+This separation makes the demo safe and legible: the first repository proves the product and its
+governance, while the second proves a real external write without risking the product source or a
+real course.
+
 ## Milestone 0 — finish the public proof loop
 
 Purpose: turn the existing implementation into judge-verifiable evidence before changing the core.
 
 Work:
 
-- Push `agent/actual-product`, review it through a draft pull request, and merge only after CI.
-- Create a dedicated GitHub demo-target repository; never use the product repository as the write
-  target.
-- Deploy the existing `render.yaml` shape with a persistent volume, required authentication, the
-  single-repository GitHub allowlist, and immutable commit evidence.
+- Completed: merge the reviewed product branch into `main`, keep CI green, and remove the obsolete
+  source branch only after Render tracks `main`.
+- Completed: create the dedicated `CourseFuzz-Demo-Target` repository instead of using the product
+  repository as a write target.
+- Completed: deploy the zero-cost `render.yaml` shape with required authentication, hosted Postgres,
+  the single-repository GitHub allowlist, and immutable commit evidence.
+- Remaining: execute the deployed GitHub destination flow and preserve the public draft-PR receipt.
 - Run the complete deployed flow from a clean logged-out desktop and phone-sized browser.
 - Record the 2:50–2:55 demo with burned and platform captions. Show a live draft pull request and
   its read-back receipt.
