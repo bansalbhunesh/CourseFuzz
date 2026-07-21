@@ -14,11 +14,13 @@ from dataclasses import dataclass, field
 
 import pytest
 
+from coursefuzz.adapters.batch_runner import run_batch
 from coursefuzz.adapters.isolated_runner import (
     CommandResult,
     DockerIsolatedRunner,
     GVisorDockerRunner,
 )
+from coursefuzz.adapters.sandbox import LocalRestrictedRunner
 from coursefuzz.domain.execution import ExecutionLimits, ExecutionOutcome, ExecutionRequest
 from coursefuzz.domain.models import ProgramVariant
 from coursefuzz.domain.models import TestCase as CFTestCase
@@ -206,6 +208,77 @@ def test_run_suite_adapts_execute_for_the_engine_interface() -> None:
     assert suite.outputs[0]["actual"] == 2
 
 
+REJECT_IMPORT = "import os\ndef solve(value):\n    return value\n"
+
+
+def _batch_stdout(results: list[dict]) -> str:
+    return json.dumps({"ok": True, "results": results})
+
+
+def test_batch_runner_runs_each_program_in_order() -> None:
+    payload = {
+        "batch": [
+            {"source": INCREMENT, "entrypoint": "solve", "tests": [{"inputs": [1], "expected": 2}]},
+            {"source": REJECT_IMPORT, "entrypoint": "solve", "tests": [{"inputs": [1]}]},
+        ]
+    }
+
+    result = run_batch(payload)
+
+    assert result["ok"]
+    assert result["results"][0]["ok"] and result["results"][0]["passed"] == 1
+    assert not result["results"][1]["ok"]
+    assert result["results"][1]["kind"] == "rejected"
+
+
+def test_execute_batch_uses_one_container_for_many_programs() -> None:
+    executor = _FakeExecutor(
+        result=CommandResult(
+            0,
+            _batch_stdout(
+                [
+                    {
+                        "ok": True,
+                        "passed": 1,
+                        "failed": 0,
+                        "outputs": [{"inputs": [1], "expected": 2, "actual": 2, "passed": True}],
+                    },
+                    {"ok": False, "error": "ValueError: bad import", "kind": "rejected"},
+                ]
+            ),
+            "",
+        )
+    )
+    runner = DockerIsolatedRunner(executor=executor)
+
+    results = runner.execute_batch([_request(INCREMENT), _request(REJECT_IMPORT)])
+
+    # One container start-up for the whole batch, running the batch entrypoint.
+    assert len(executor.calls) == 1
+    assert executor.calls[0].argv[-3:] == ["-I", "-m", "coursefuzz.adapters.batch_runner"]
+    assert len(results) == 2
+    assert results[0].outcome is ExecutionOutcome.COMPLETED
+    assert results[0].passed == 1
+    assert results[1].outcome is ExecutionOutcome.REJECTED
+
+
+def test_execute_batch_empty_returns_empty() -> None:
+    executor = _FakeExecutor(result=CommandResult(0, "", ""))
+    runner = DockerIsolatedRunner(executor=executor)
+
+    assert runner.execute_batch([]) == []
+    assert executor.calls == []  # no container is started for an empty batch
+
+
+def test_local_runner_execute_batch_defaults_to_sequential() -> None:
+    runner = LocalRestrictedRunner()
+
+    results = runner.execute_batch([_request(INCREMENT), _request(REJECT_IMPORT)])
+
+    assert results[0].outcome is ExecutionOutcome.COMPLETED
+    assert results[1].outcome is ExecutionOutcome.REJECTED
+
+
 def _docker_image_ready() -> bool:
     try:
         info = subprocess.run(
@@ -311,3 +384,20 @@ def test_gvisor_runtime_executes_in_a_real_container() -> None:
     assert result.outcome is ExecutionOutcome.COMPLETED
     assert result.passed == 1
     assert result.receipt.runtime == "docker/runsc:coursefuzz:local"
+
+
+@pytest.mark.skipif(
+    not _docker_image_ready(),
+    reason="requires a running Docker daemon and a built coursefuzz:local image",
+)
+def test_execute_batch_runs_many_programs_in_one_real_container() -> None:
+    """Two programs run in a single container start-up, each mapped to its own result."""
+
+    runner = DockerIsolatedRunner()
+
+    results = runner.execute_batch([_request(INCREMENT), _request(REJECT_IMPORT)])
+
+    assert len(results) == 2
+    assert results[0].outcome is ExecutionOutcome.COMPLETED
+    assert results[0].passed == 1
+    assert results[1].outcome is ExecutionOutcome.REJECTED

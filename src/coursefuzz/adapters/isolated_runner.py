@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import subprocess
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -105,11 +106,7 @@ class DockerIsolatedRunner(ExecutionGateway):
     def runtime_identity(self) -> str:
         return f"docker/{self.runtime or 'default'}:{self.image}"
 
-    def isolation_argv(self, request: ExecutionRequest) -> list[str]:
-        """The exact ``docker run`` invocation. Isolation lives here and is tested here."""
-
-        memory_bytes = request.limits.memory_bytes or DEFAULT_MEMORY_BYTES
-        max_pids = request.limits.max_pids or DEFAULT_MAX_PIDS
+    def _container_argv(self, memory_bytes: int, max_pids: int, module: str) -> list[str]:
         runtime_flag = ["--runtime", self.runtime] if self.runtime else []
         return [
             "docker",
@@ -143,8 +140,15 @@ class DockerIsolatedRunner(ExecutionGateway):
             self.image,
             "-I",
             "-m",
-            "coursefuzz.adapters.runner",
+            module,
         ]
+
+    def isolation_argv(self, request: ExecutionRequest) -> list[str]:
+        """The exact ``docker run`` invocation. Isolation lives here and is tested here."""
+
+        memory_bytes = request.limits.memory_bytes or DEFAULT_MEMORY_BYTES
+        max_pids = request.limits.max_pids or DEFAULT_MAX_PIDS
+        return self._container_argv(memory_bytes, max_pids, "coursefuzz.adapters.runner")
 
     def execute(self, request: ExecutionRequest) -> ExecutionResult:
         raw = self._invoke(request)
@@ -173,6 +177,131 @@ class DockerIsolatedRunner(ExecutionGateway):
             outputs=outputs,
             error=raw.error,
             receipt=receipt,
+        )
+
+    def execute_batch(self, requests: Sequence[ExecutionRequest]) -> list[ExecutionResult]:
+        """Run every request in one container: a single start-up for the whole batch.
+
+        Per-program validation and execution are identical to ``execute`` (both call the same
+        restricted runner); only the container start-up is shared. Per-result ``output_bytes`` is
+        not separable from one shared stdout, so it is reported as 0 for batched results.
+        """
+
+        batch = tuple(requests)
+        if not batch:
+            return []
+        payload = {
+            "batch": [
+                {
+                    "source": request.source,
+                    "entrypoint": request.entrypoint,
+                    "tests": [test.model_dump(mode="json") for test in request.tests],
+                }
+                for request in batch
+            ]
+        }
+        memory_bytes = max((r.limits.memory_bytes or DEFAULT_MEMORY_BYTES) for r in batch)
+        max_pids = max((r.limits.max_pids or DEFAULT_MAX_PIDS) for r in batch)
+        argv = self._container_argv(memory_bytes, max_pids, "coursefuzz.adapters.batch_runner")
+        wall = sum(r.limits.wall_seconds for r in batch) + self.startup_grace_seconds
+        started = time.monotonic()
+        try:
+            completed = self.executor.run(argv, input=json.dumps(payload), timeout=max(wall, 0.01))
+        except subprocess.TimeoutExpired:
+            wall_ms = self._elapsed_ms(started)
+            return [
+                self._assemble(
+                    r, ExecutionOutcome.TIMED_OUT, 0, len(r.tests),
+                    "Execution exceeded the total deadline", "wall-deadline-exceeded", wall_ms, (),
+                )
+                for r in batch
+            ]
+
+        wall_ms = self._elapsed_ms(started)
+        try:
+            parsed = json.loads(completed.stdout or "{}")
+        except json.JSONDecodeError:
+            parsed = {"ok": False}
+        results = parsed.get("results")
+        if not parsed.get("ok") or not isinstance(results, list) or len(results) != len(batch):
+            error = str(
+                parsed.get("error")
+                or (completed.stderr[:500] if completed.stderr else "Batch runner failed")
+            )
+            return [
+                self._assemble(
+                    r, ExecutionOutcome.RUNTIME_ERROR, 0, len(r.tests),
+                    error, "runner-error", wall_ms, (),
+                )
+                for r in batch
+            ]
+        return [
+            self._result_from_runner_dict(r, raw, wall_ms)
+            for r, raw in zip(batch, results, strict=True)
+        ]
+
+    def _result_from_runner_dict(
+        self, request: ExecutionRequest, raw: dict[str, Any], wall_ms: int
+    ) -> ExecutionResult:
+        num_tests = len(request.tests)
+        if not raw.get("ok"):
+            rejected = raw.get("kind") == "rejected"
+            return self._assemble(
+                request,
+                ExecutionOutcome.REJECTED if rejected else ExecutionOutcome.RUNTIME_ERROR,
+                0,
+                num_tests,
+                str(raw.get("error", "Runner failed")),
+                "restricted-language-violation" if rejected else "runner-error",
+                wall_ms,
+                (),
+            )
+        outputs = tuple(
+            CaseOutput(
+                inputs=tuple(entry.get("inputs", ())),
+                expected=entry.get("expected"),
+                actual=entry.get("actual"),
+                passed=bool(entry.get("passed", False)),
+                error=entry.get("error"),
+            )
+            for entry in raw["outputs"]
+        )
+        return self._assemble(
+            request,
+            ExecutionOutcome.COMPLETED,
+            int(raw["passed"]),
+            int(raw["failed"]),
+            None,
+            "completed",
+            wall_ms,
+            outputs,
+        )
+
+    def _assemble(
+        self,
+        request: ExecutionRequest,
+        outcome: ExecutionOutcome,
+        passed: int,
+        failed: int,
+        error: str | None,
+        termination_reason: str,
+        wall_ms: int,
+        outputs: tuple[CaseOutput, ...],
+    ) -> ExecutionResult:
+        return ExecutionResult(
+            outcome=outcome,
+            passed=passed,
+            failed=failed,
+            outputs=outputs,
+            error=error,
+            receipt=ExecutionReceipt(
+                request_digest=request.digest,
+                runtime=self.runtime_identity,
+                outcome=outcome,
+                termination_reason=termination_reason,
+                wall_ms=wall_ms,
+                output_bytes=0,
+            ),
         )
 
     def _invoke(self, request: ExecutionRequest) -> _RawRun:

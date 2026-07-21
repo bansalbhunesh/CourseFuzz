@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from enum import StrEnum
 from typing import Any, Literal
 
@@ -165,6 +166,17 @@ class ExecutionGateway(ABC):
     @abstractmethod
     def execute(self, request: ExecutionRequest) -> ExecutionResult:
         raise NotImplementedError
+
+    def execute_batch(self, requests: Sequence[ExecutionRequest]) -> list[ExecutionResult]:
+        """Execute several requests, one result each, preserving order.
+
+        The default runs them sequentially, so a runner whose per-execution overhead is negligible
+        (the local process) needs no special handling. Container runners override this to run the
+        whole batch in a single sandbox — one start-up instead of one per program — which is what
+        makes a container-backed analysis practical.
+        """
+
+        return [self.execute(request) for request in requests]
 
     def run_suite(
         self,
