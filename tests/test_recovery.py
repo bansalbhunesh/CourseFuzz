@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from coursefuzz.domain.models import RunStatus, utc_now
 from coursefuzz.main import create_app
 
@@ -47,9 +49,13 @@ def test_recovery_restores_interrupted_apply_to_reauthorization_boundary(
     assert "reauthorize" in (result.error or "")
 
 
-def test_interrupted_apply_retries_to_exactly_once_verification(tmp_path: Path) -> None:
-    """An apply that crashed after consuming the approval but before verifying must be safely
-    retryable to a single verified write -- not blocked, and not applied twice.
+def test_interrupted_apply_requires_reauthorization_then_verifies_idempotently(
+    tmp_path: Path,
+) -> None:
+    """A crash after approval consumption must fail closed until the exact payload is reapproved.
+
+    Destination writes are deterministic and idempotent, so a fresh authorized attempt converges on
+    the same verified artifact even if the process crashed after an uncertain first write.
     """
 
     app = create_app(tmp_path / "coursefuzz.db", tmp_path / "artifacts")
@@ -74,11 +80,15 @@ def test_interrupted_apply_retries_to_exactly_once_verification(tmp_path: Path) 
         )
     )
 
-    # Recovery returns it to the retryable approved boundary, then the retry completes once.
+    # Recovery returns it to an approved-but-unauthorized boundary.
     service.recover_incomplete_runs()
     assert service.require_run(run.id).status == RunStatus.APPROVED
 
-    verified = service.apply(run.id, token)
+    with pytest.raises(ValueError, match="Approval token is invalid for this exact payload"):
+        service.apply(run.id, token)
+
+    replacement = service.approve(run.id, payload)
+    verified = service.apply(run.id, replacement.approval_token)
     assert verified.status == RunStatus.VERIFIED
     assert verified.action_receipt is not None
     assert verified.action_receipt.read_back_verified is True
@@ -86,7 +96,7 @@ def test_interrupted_apply_retries_to_exactly_once_verification(tmp_path: Path) 
     assert artifact is not None
 
     # A duplicate delivery of the same apply is a no-op: identical artifact, no second write.
-    replay = service.apply(run.id, token)
+    replay = service.apply(run.id, replacement.approval_token)
     assert replay.status == RunStatus.VERIFIED
     assert replay.artifact_sha256 == verified.artifact_sha256
     assert service.repository.artifact(run.id).sha256 == artifact.sha256

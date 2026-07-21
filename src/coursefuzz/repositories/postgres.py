@@ -8,7 +8,7 @@ from pathlib import Path
 import psycopg
 from psycopg.rows import dict_row
 
-from coursefuzz.domain.models import AssignmentSnapshot, AuditEvent, RunView
+from coursefuzz.domain.models import AssignmentSnapshot, AuditEvent, RunStatus, RunView
 from coursefuzz.repositories.types import ArtifactRecord
 from coursefuzz.security.access import GLOBAL_TENANT, LOCAL_TENANT
 
@@ -259,6 +259,41 @@ class PostgresRunRepository:
             if cursor.rowcount != 1:
                 raise KeyError(run.id)
 
+    def claim_approved_apply(
+        self,
+        run: RunView,
+        approval_token: str,
+        payload_sha256: str,
+    ) -> bool:
+        """Consume an exact approval and claim its apply transition in one transaction."""
+
+        with self._connect() as connection:
+            approval = connection.execute(
+                "SELECT approval_token, payload_sha256, consumed_at FROM approvals "
+                "WHERE run_id = %s FOR UPDATE",
+                (run.id,),
+            ).fetchone()
+            if (
+                not approval
+                or approval["approval_token"] != approval_token
+                or approval["payload_sha256"] != payload_sha256
+                or approval["consumed_at"] is not None
+            ):
+                return False
+            cursor = connection.execute(
+                "UPDATE runs SET document = %s, updated_at = %s "
+                "WHERE id = %s AND document::jsonb->>'status' = %s",
+                (run.model_dump_json(), _utc_iso(), run.id, RunStatus.APPROVED.value),
+            )
+            if cursor.rowcount != 1:
+                return False
+            consumed = connection.execute(
+                "UPDATE approvals SET consumed_at = %s "
+                "WHERE run_id = %s AND consumed_at IS NULL",
+                (_utc_iso(), run.id),
+            )
+            return consumed.rowcount == 1
+
     def append_event(
         self,
         run_id: str,
@@ -330,8 +365,9 @@ class PostgresRunRepository:
     def consume_approval(self, run_id: str, approval_token: str, payload_sha256: str) -> bool:
         with self._connect() as connection:
             row = connection.execute(
-                "UPDATE approvals SET consumed_at = COALESCE(consumed_at, %s) "
+                "UPDATE approvals SET consumed_at = %s "
                 "WHERE run_id = %s AND approval_token = %s AND payload_sha256 = %s "
+                "AND consumed_at IS NULL "
                 "RETURNING run_id",
                 (_utc_iso(), run_id, approval_token, payload_sha256),
             ).fetchone()

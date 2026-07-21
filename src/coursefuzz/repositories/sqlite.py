@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import secrets
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from coursefuzz.domain.models import AssignmentSnapshot, AuditEvent, RunView
+from coursefuzz.domain.models import AssignmentSnapshot, AuditEvent, RunStatus, RunView
 from coursefuzz.repositories.types import ArtifactRecord
 from coursefuzz.security.access import GLOBAL_TENANT, LOCAL_TENANT
 
@@ -23,12 +25,20 @@ class RunRepository:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(self.path, timeout=5, check_same_thread=False)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA foreign_keys=ON")
-        return connection
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
     def _initialize(self) -> None:
         with self._connect() as connection:
@@ -271,6 +281,45 @@ class RunRepository:
             if cursor.rowcount != 1:
                 raise KeyError(run.id)
 
+    def claim_approved_apply(
+        self,
+        run: RunView,
+        approval_token: str,
+        payload_sha256: str,
+    ) -> bool:
+        """Consume an exact approval and claim its apply transition in one transaction."""
+
+        with self._connect() as connection:
+            # Acquire the write lock before reading either row. That keeps concurrent callers from
+            # both observing an unconsumed approval and makes the approval + status transition one
+            # indivisible claim.
+            connection.execute("BEGIN IMMEDIATE")
+            approval = connection.execute(
+                "SELECT approval_token, payload_sha256, consumed_at FROM approvals "
+                "WHERE run_id = ?",
+                (run.id,),
+            ).fetchone()
+            if (
+                not approval
+                or approval["approval_token"] != approval_token
+                or approval["payload_sha256"] != payload_sha256
+                or approval["consumed_at"] is not None
+            ):
+                return False
+            cursor = connection.execute(
+                "UPDATE runs SET document = ?, updated_at = ? "
+                "WHERE id = ? AND json_extract(document, '$.status') = ?",
+                (run.model_dump_json(), _utc_iso(), run.id, RunStatus.APPROVED.value),
+            )
+            if cursor.rowcount != 1:
+                return False
+            consumed = connection.execute(
+                "UPDATE approvals SET consumed_at = ? "
+                "WHERE run_id = ? AND consumed_at IS NULL",
+                (_utc_iso(), run.id),
+            )
+            return consumed.rowcount == 1
+
     def append_event(
         self,
         run_id: str,
@@ -339,21 +388,13 @@ class RunRepository:
 
     def consume_approval(self, run_id: str, approval_token: str, payload_sha256: str) -> bool:
         with self._connect() as connection:
-            row = connection.execute(
-                "SELECT * FROM approvals WHERE run_id = ?", (run_id,)
-            ).fetchone()
-            if (
-                not row
-                or row["approval_token"] != approval_token
-                or row["payload_sha256"] != payload_sha256
-            ):
-                return False
-            if row["consumed_at"] is None:
-                connection.execute(
-                    "UPDATE approvals SET consumed_at = ? WHERE run_id = ?",
-                    (_utc_iso(), run_id),
-                )
-            return True
+            cursor = connection.execute(
+                "UPDATE approvals SET consumed_at = ? "
+                "WHERE run_id = ? AND approval_token = ? AND payload_sha256 = ? "
+                "AND consumed_at IS NULL",
+                (_utc_iso(), run_id, approval_token, payload_sha256),
+            )
+            return cursor.rowcount == 1
 
     def save_artifact(self, run_id: str, path: Path, sha256: str) -> None:
         content = path.read_bytes()

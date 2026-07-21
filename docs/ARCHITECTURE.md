@@ -55,7 +55,7 @@ This is how isolated execution runs off the API process; deploy the API with
 
 ```text
 queued -> analyzing -> approval_required -> approved -> applying -> verified
-                    \-> failed                 \-> approved (retryable write failure)
+                    \-> failed                 \-> approved (write failure; reauthorization required)
 ```
 
 Every transition writes an ordered database audit event. SSE clients can resume with
@@ -67,6 +67,11 @@ When deployment keys are configured, bearer or HttpOnly-cookie authentication re
 request to a tenant. Assignment access is many-to-many so seeded examples can be explicitly
 global without exposing private imports; runs and tenant-prefixed idempotency keys have one owner.
 The API verifies ownership before run reads, approvals, writes, artifact downloads, and SSE streams.
+The repository consumes the one-time exact-payload approval and claims the
+`approved -> applying` transition in one database transaction. Concurrent apply deliveries cannot
+both start a destination action. A failed or interrupted action returns to `approved` but the
+consumed token remains invalid; an instructor must authorize the unchanged payload again. Local and
+GitHub destinations are idempotent so an uncertain prior write converges on the same bytes.
 
 Assignment source, controls, tests, domain, and destination are canonicalized into an immutable
 SHA-256 snapshot. Every run stores that snapshot hash and refuses execution if its assignment ID

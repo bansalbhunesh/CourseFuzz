@@ -52,7 +52,7 @@ a description.
 | The external write is idempotent on retry | run branch, draft PR, and file already exist | `tests/test_github_destination.py` |
 | Approval binds the exact payload | stale hash, forged token, rotated token, replay after verify | `tests/test_approval_binding.py` |
 | No false "verified" | post-write metrics diverge from the approved projection | `tests/test_approval_binding.py` |
-| Exactly-once under interruption | crash after consuming the approval, then retry | `tests/test_recovery.py` |
+| Exactly-once logical apply | concurrent claims plus crash after approval consumption | `tests/test_exactly_once.py`, `tests/test_recovery.py` |
 | Snapshot immutability | a run bound to a hash the assignment no longer resolves to | `tests/test_snapshot_immutability.py` |
 | Cross-tenant isolation | tenant B applies or reads tenant A's run and artifact with a leaked token | `tests/test_tenant_isolation.py` |
 | Execution containment surface | 14 hostile programs: imports, escapes, loops, comprehension, oversized source | `tests/test_hostile_corpus.py` |

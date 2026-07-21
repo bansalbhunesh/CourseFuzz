@@ -48,6 +48,13 @@ class Repository(Protocol):
 
     def save(self, run: RunView) -> None: ...
 
+    def claim_approved_apply(
+        self,
+        run: RunView,
+        approval_token: str,
+        payload_sha256: str,
+    ) -> bool: ...
+
     def append_event(
         self,
         run_id: str,

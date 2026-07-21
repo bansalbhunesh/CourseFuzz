@@ -268,11 +268,13 @@ class RunService:
         if run.status != RunStatus.APPROVED or not run.analysis or not run.analysis.candidate:
             raise ValueError("Run does not have an approved patch")
         candidate = run.analysis.candidate
-        if not self.repository.consume_approval(run.id, approval_token, candidate.payload_sha256):
-            raise ValueError("Approval token is invalid for this exact payload")
-
         applying = run.model_copy(update={"status": RunStatus.APPLYING, "updated_at": utc_now()})
-        self.repository.save(applying)
+        if not self.repository.claim_approved_apply(
+            applying,
+            approval_token,
+            candidate.payload_sha256,
+        ):
+            raise ValueError("Approval token is invalid for this exact payload")
         self.repository.append_event(
             run.id,
             "patch.applying",
@@ -297,7 +299,7 @@ class RunService:
             retryable = applying.model_copy(
                 update={
                     "status": RunStatus.APPROVED,
-                    "error": f"{type(exc).__name__}: {exc}",
+                    "error": f"{type(exc).__name__}: {exc}; reauthorize the exact payload",
                     "updated_at": utc_now(),
                 }
             )
@@ -306,7 +308,7 @@ class RunService:
                 run.id,
                 "patch.failed",
                 "apply",
-                "The write or read-back failed; the approved action remains retryable.",
+                "The write or read-back failed; the exact payload must be reauthorized.",
                 {"error": retryable.error},
             )
             raise
