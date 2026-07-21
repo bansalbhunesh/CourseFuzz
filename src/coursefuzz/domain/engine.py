@@ -156,20 +156,22 @@ class AssessmentEngine:
         tests: tuple[TestCase, ...] | list[TestCase],
         deadline: float,
     ) -> tuple[MutationMetrics, tuple[ProgramVariant, ...]]:
-        survivors: list[ProgramVariant] = []
-        killed = 0
-        for mutant in assignment.mutants:
-            result = self._run_suite(mutant, assignment.entrypoint, tests, deadline)
-            if result.all_passed:
-                survivors.append(mutant)
-            else:
-                killed += 1
-
-        accepted_passed = sum(
-            self._run_suite(solution, assignment.entrypoint, tests, deadline).all_passed
-            for solution in assignment.accepted_solutions
-        )
-        total = len(assignment.mutants)
+        # One batch covers every mutant and accepted control against the same suite. For the local
+        # runner this is its own run_suite looped (identical behavior); for a container runner it is
+        # a single sandbox start-up instead of one per program.
+        programs = (*assignment.mutants, *assignment.accepted_solutions)
+        executions = self._run_suite_batch(programs, assignment.entrypoint, tests, deadline)
+        mutant_count = len(assignment.mutants)
+        mutant_results = executions[:mutant_count]
+        accepted_results = executions[mutant_count:]
+        survivors: list[ProgramVariant] = [
+            mutant
+            for mutant, result in zip(assignment.mutants, mutant_results, strict=True)
+            if result.all_passed
+        ]
+        killed = sum(1 for result in mutant_results if not result.all_passed)
+        accepted_passed = sum(1 for result in accepted_results if result.all_passed)
+        total = mutant_count
         metrics = MutationMetrics(
             total_mutants=total,
             killed_mutants=killed,
@@ -310,6 +312,23 @@ class AssessmentEngine:
             raise TimeoutError("Analysis exceeded its total execution deadline")
         return self.sandbox.run_suite(
             program,
+            entrypoint,
+            tests,
+            timeout_seconds=remaining,
+        )
+
+    def _run_suite_batch(
+        self,
+        programs: tuple[ProgramVariant, ...],
+        entrypoint: str,
+        tests: tuple[TestCase, ...] | list[TestCase],
+        deadline: float,
+    ) -> list[SuiteExecution]:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("Analysis exceeded its total execution deadline")
+        return self.sandbox.run_suite_batch(
+            programs,
             entrypoint,
             tests,
             timeout_seconds=remaining,

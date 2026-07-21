@@ -192,18 +192,52 @@ class ExecutionGateway(ABC):
         engine reads (``outputs[i]["actual"]``).
         """
 
+        request = self._suite_request(program, entrypoint, tests, timeout_seconds)
+        return self._suite_from_result(program, self.execute(request))
+
+    def run_suite_batch(
+        self,
+        programs: Sequence[ProgramVariant],
+        entrypoint: str,
+        tests: tuple[TestCase, ...] | list[TestCase],
+        timeout_seconds: float | None = None,
+    ) -> list[SuiteExecution]:
+        """Batch form of ``run_suite``: container runners execute the whole batch in one sandbox.
+
+        ``LocalRestrictedRunner`` overrides this to loop its byte-identical ``run_suite``; the
+        default builds one request per program and defers to ``execute_batch``.
+        """
+
+        batch = tuple(programs)
+        cases = tuple(tests)
+        requests = [self._suite_request(p, entrypoint, cases, timeout_seconds) for p in batch]
+        results = self.execute_batch(requests)
+        return [
+            self._suite_from_result(program, result)
+            for program, result in zip(batch, results, strict=True)
+        ]
+
+    @staticmethod
+    def _suite_request(
+        program: ProgramVariant,
+        entrypoint: str,
+        tests: tuple[TestCase, ...] | list[TestCase],
+        timeout_seconds: float | None,
+    ) -> ExecutionRequest:
         if timeout_seconds:
             wall_seconds = min(timeout_seconds, 60.0)
         else:
             wall_seconds = DEFAULT_LIMITS.wall_seconds
-        request = ExecutionRequest.build(
+        return ExecutionRequest.build(
             program_id=program.id,
             source=program.source,
             entrypoint=entrypoint,
             tests=tuple(tests),
             limits=DEFAULT_LIMITS.model_copy(update={"wall_seconds": max(wall_seconds, 0.01)}),
         )
-        result = self.execute(request)
+
+    @staticmethod
+    def _suite_from_result(program: ProgramVariant, result: ExecutionResult) -> SuiteExecution:
         outputs: list[dict[str, Any]] = []
         for case in result.outputs:
             entry: dict[str, Any] = {

@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -117,6 +118,17 @@ class LocalRestrictedRunner(ExecutionGateway):
             error=raw.error,
             outputs=raw.outputs,
         )
+
+    def run_suite_batch(
+        self,
+        programs: Sequence[ProgramVariant],
+        entrypoint: str,
+        tests: tuple[TestCase, ...] | list[TestCase],
+        timeout_seconds: float | None = None,
+    ) -> list[SuiteExecution]:
+        # The local process has negligible per-execution overhead, so batching is just its own
+        # byte-identical run_suite looped: no behavior change relative to the sequential path.
+        return [self.run_suite(program, entrypoint, tests, timeout_seconds) for program in programs]
 
     # -- shared subprocess invocation -------------------------------------------------------
 

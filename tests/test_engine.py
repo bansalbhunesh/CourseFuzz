@@ -168,6 +168,28 @@ def test_engine_is_not_tied_to_the_seeded_triangle_assignment() -> None:
     assert "absolute_value" in result.candidate.pytest_source
 
 
+class _CountingRunner(SubprocessPythonSandbox):
+    def __init__(self) -> None:
+        super().__init__()
+        self.batch_calls = 0
+
+    def run_suite_batch(self, programs, entrypoint, tests, timeout_seconds=None):  # type: ignore[override]
+        self.batch_calls += 1
+        return super().run_suite_batch(programs, entrypoint, tests, timeout_seconds)
+
+
+def test_engine_measures_mutants_and_controls_in_one_batch() -> None:
+    runner = _CountingRunner()
+    engine = AssessmentEngine(runner, DeterministicHypothesisProvider())
+
+    result = engine.analyze(TRIANGLE_ASSIGNMENT)
+
+    # The mutation-measurement sweep goes through run_suite_batch, so a container backend runs it
+    # as one sandbox rather than one per program.
+    assert runner.batch_calls >= 1
+    assert result.candidate is not None  # behavior is unchanged: it still finds the counterexample
+
+
 def test_engine_enforces_a_total_analysis_deadline() -> None:
     engine = AssessmentEngine(
         SubprocessPythonSandbox(),
