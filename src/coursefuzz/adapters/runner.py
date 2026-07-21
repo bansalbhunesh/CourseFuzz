@@ -99,8 +99,16 @@ def main() -> int:
     try:
         payload = json.loads(sys.stdin.read())
         result = run(payload)
-        sys.stdout.write(json.dumps({"ok": True, **result}, separators=(",", ":")))
-        return 0
+    except ValueError as exc:
+        # A restricted-language contract violation from validate_source: the program was rejected
+        # before it ran. Tagged so the gateway can report ExecutionOutcome.REJECTED distinctly.
+        sys.stdout.write(
+            json.dumps(
+                {"ok": False, "error": f"{type(exc).__name__}: {exc}", "kind": "rejected"},
+                separators=(",", ":"),
+            )
+        )
+        return 1
     except Exception as exc:
         sys.stdout.write(
             json.dumps(
@@ -109,6 +117,8 @@ def main() -> int:
             )
         )
         return 1
+    sys.stdout.write(json.dumps({"ok": True, **result}, separators=(",", ":")))
+    return 0
 
 
 if __name__ == "__main__":

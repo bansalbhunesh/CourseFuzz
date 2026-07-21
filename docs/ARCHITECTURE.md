@@ -9,7 +9,9 @@ React proof sheet (evidence, exact approval, live/resumable audit trace)
   -> RunService (workflow, approval, idempotency, read-back)
     -> AssessmentEngine (mutation, oracle consensus, minimization, metrics)
       -> HypothesisProvider (GPT-5.6 or deterministic fallback)
-      -> SubprocessPythonSandbox (restricted syntax, total deadline)
+      -> ExecutionGateway (versioned ExecutionRequest -> ExecutionResult + runtime-pinned receipt)
+        -> LocalRestrictedRunner (restricted syntax, total deadline; development only)
+        -> RemoteIsolatedRunner (no-network hardened sandbox; production — Milestone 1)
     -> DestinationCoordinator
       -> local artifact adapter
       -> GitHub branch + draft-PR adapter
@@ -26,9 +28,15 @@ solutions must agree before an input receives an expected result. The restricted
 adapter then reruns each surviving misconception mutant. Candidates without a behavioral
 disagreement are rejected.
 
-The demo runner accepts a small Python subset and starts a fresh `python -I` process with a
-1.5-second total deadline. This is suitable for the seeded demonstration; a production
-multi-tenant service must replace it with a hardened container or microVM boundary.
+Execution runs behind a single domain protocol, `ExecutionGateway`, which turns a versioned
+`ExecutionRequest` (source SHA, entrypoint, typed cases, resource limits) into a versioned
+`ExecutionResult` carrying a runtime-pinned `ExecutionReceipt`. Today the only adapter is
+`LocalRestrictedRunner`: it accepts a small Python subset and starts a fresh `python -I` process
+with a 1.5-second total deadline and an output ceiling enforced out-of-process. This is suitable
+for the seeded demonstration and its containment surface is locked by `tests/test_hostile_corpus.py`,
+but it is a source-AST boundary, not hostile-code isolation. A production multi-tenant service must
+add a `RemoteIsolatedRunner` (no network, hardened container or microVM) behind the same gateway; it
+will reuse the shared adapter contract suite in `tests/test_execution_gateway.py` unchanged.
 
 ## Workflow states
 
