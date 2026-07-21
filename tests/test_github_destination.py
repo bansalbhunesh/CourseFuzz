@@ -71,7 +71,10 @@ def test_github_destination_binds_base_commit_writes_pr_and_reads_back() -> None
         base_url="https://api.github.test",
         transport=httpx.MockTransport(handler),
     )
-    adapter = GitHubDestinationAdapter(client=client)
+    adapter = GitHubDestinationAdapter(
+        client=client,
+        allowed_repositories={"course-owner/autograder"},
+    )
 
     prepared = adapter.prepare("run_test", unbound)
     applied = adapter.apply(prepared)
@@ -83,3 +86,33 @@ def test_github_destination_binds_base_commit_writes_pr_and_reads_back() -> None
     assert applied.receipt.pull_request_number == 17
     assert applied.receipt.commit_sha == "b" * 40
     assert calls[-1][0] == "GET"
+
+
+def test_github_destination_fails_closed_outside_repository_allowlist() -> None:
+    assignment = TRIANGLE_ASSIGNMENT.model_copy(
+        update={
+            "destination": GitHubPullRequestDestination(
+                repository="course-owner/autograder",
+                base_branch="main",
+            )
+        }
+    )
+    candidate = AssessmentEngine(
+        SubprocessPythonSandbox(), DeterministicHypothesisProvider()
+    ).analyze(assignment).candidate
+    assert candidate is not None
+    client = httpx.Client(
+        base_url="https://api.github.test",
+        transport=httpx.MockTransport(lambda _: httpx.Response(500)),
+    )
+    adapter = GitHubDestinationAdapter(
+        client=client,
+        allowed_repositories={"course-owner/dedicated-demo-target"},
+    )
+
+    try:
+        adapter.prepare("run_test", candidate)
+    except RuntimeError as exc:
+        assert "not in COURSEFUZZ_GITHUB_ALLOWED_REPOS" in str(exc)
+    else:
+        raise AssertionError("GitHub destination accepted a repository outside its allowlist")

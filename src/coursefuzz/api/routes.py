@@ -79,7 +79,10 @@ def build_router(
                 "configured" if service.github_destination_available else "unconfigured"
             ),
             "auth": access.mode,
-            "commit": os.getenv("COURSEFUZZ_COMMIT_SHA", "local"),
+            "commit": os.getenv(
+                "COURSEFUZZ_COMMIT_SHA",
+                os.getenv("RENDER_GIT_COMMIT", "local"),
+            ),
         }
 
     @router.post("/session")

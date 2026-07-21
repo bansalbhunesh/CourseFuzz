@@ -28,8 +28,19 @@ class GitHubDestinationAdapter:
         self,
         token: str | None = None,
         client: httpx.Client | None = None,
+        allowed_repositories: set[str] | None = None,
     ) -> None:
         self.token = token or os.getenv("COURSEFUZZ_GITHUB_TOKEN")
+        configured_repositories = os.getenv("COURSEFUZZ_GITHUB_ALLOWED_REPOS", "")
+        self.allowed_repositories = {
+            repository.strip().lower()
+            for repository in (
+                allowed_repositories
+                if allowed_repositories is not None
+                else configured_repositories.split(",")
+            )
+            if repository.strip()
+        }
         self.client = client or httpx.Client(
             base_url="https://api.github.com",
             timeout=10.0,
@@ -37,16 +48,28 @@ class GitHubDestinationAdapter:
 
     @property
     def available(self) -> bool:
-        return bool(self.token) or self.client.base_url.host != "api.github.com"
+        has_credentials = bool(self.token) or self.client.base_url.host != "api.github.com"
+        return has_credentials and bool(self.allowed_repositories)
+
+    def _require_allowed_repository(self, repository: str) -> None:
+        if repository.lower() not in self.allowed_repositories:
+            raise RuntimeError(
+                f"GitHub repository {repository!r} is not in "
+                "COURSEFUZZ_GITHUB_ALLOWED_REPOS"
+            )
 
     def prepare(self, run_id: str, candidate: CandidatePatch) -> CandidatePatch:
         target = candidate.target
         if target.kind != "github_pull_request":
             return candidate
         if not self.available:
-            raise RuntimeError("GitHub destination requires COURSEFUZZ_GITHUB_TOKEN")
+            raise RuntimeError(
+                "GitHub destination requires COURSEFUZZ_GITHUB_TOKEN and a non-empty "
+                "COURSEFUZZ_GITHUB_ALLOWED_REPOS allowlist"
+            )
         if not target.repository or not target.base_branch:
             raise RuntimeError("GitHub destination is missing repository or base branch")
+        self._require_allowed_repository(target.repository)
 
         encoded_branch = quote(target.base_branch, safe="")
         response = self._request(
@@ -74,6 +97,7 @@ class GitHubDestinationAdapter:
             or not target.head_branch
         ):
             raise RuntimeError("GitHub candidate is not bound to an exact destination")
+        self._require_allowed_repository(target.repository)
 
         encoded_head = quote(target.head_branch, safe="")
         branch_response = self._request(

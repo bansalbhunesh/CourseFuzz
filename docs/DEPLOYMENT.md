@@ -19,9 +19,25 @@ docker compose up --build
 ```
 
 For a public deployment, inject secrets through the hosting platform, keep
-`COURSEFUZZ_COOKIE_SECURE=1`, set `COURSEFUZZ_COMMIT_SHA` to the immutable deployed revision, mount
-durable storage at `/app/data`, terminate TLS before the container, and run exactly one replica.
-SQLite is intentionally not advertised as multi-replica infrastructure.
+`COURSEFUZZ_COOKIE_SECURE=1`, set `COURSEFUZZ_COMMIT_SHA` to the immutable deployed revision (the
+app also reads Render's `RENDER_GIT_COMMIT`), mount durable storage at `/app/data`, terminate TLS
+before the container, and run exactly one replica. SQLite is intentionally not advertised as
+multi-replica infrastructure.
+
+`render.yaml` is the public-demo deployment shape: a paid Starter Docker service in Singapore,
+one 1 GB persistent disk, one instance, health checks, and deployment only after GitHub checks
+pass. During the initial Blueprint setup, provide these secret values:
+
+- `COURSEFUZZ_ACCESS_KEYS_JSON`: for example, a JSON map containing a random 24-plus-character
+  judge credential.
+- `COURSEFUZZ_GITHUB_TOKEN`: a fine-grained token scoped only to the dedicated demo target.
+- `COURSEFUZZ_GITHUB_ALLOWED_REPOS`: the single `owner/repository` demo target (or a tightly
+  reviewed comma-separated allowlist).
+- `OPENAI_API_KEY`: optional for the live hypothesis provider; blank/unavailable operation uses
+  the deterministic bounded fallback and is labelled accordingly.
+
+The server honors the hosting platform's `PORT` environment variable. Render supplies the
+deployed Git commit to the health receipt automatically.
 
 ## Clean-environment smoke gate
 
@@ -37,7 +53,8 @@ SQLite is intentionally not advertised as multi-replica infrastructure.
 GitHub delivery needs a dedicated integration repository plus a fine-grained token limited to
 `Contents: write` and `Pull requests: write`. The release proof must show the exact base commit,
 run-specific branch, draft pull request, destination read-back SHA-256, and rerun receipt. Do not
-use the product repository itself as a destructive demo target.
+use the product repository itself as a destructive demo target. Set the server-side repository
+allowlist even when the token itself is already repository-scoped.
 
 ## Current evidence and blocker
 

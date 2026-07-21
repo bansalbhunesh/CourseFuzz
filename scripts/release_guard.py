@@ -10,6 +10,7 @@ REQUIRED_FILES = (
     "LICENSE",
     "README.md",
     "compose.yaml",
+    "render.yaml",
     "docs/ARCHITECTURE.md",
     "docs/DEMO_RUNBOOK.md",
     "docs/DEPLOYMENT.md",
