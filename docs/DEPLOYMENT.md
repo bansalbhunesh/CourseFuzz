@@ -24,9 +24,11 @@ app also reads Render's `RENDER_GIT_COMMIT`), mount durable storage at `/app/dat
 before the container, and run exactly one replica. SQLite is intentionally not advertised as
 multi-replica infrastructure.
 
-`render.yaml` is the public-demo deployment shape: a paid Starter Docker service in Singapore,
-one 1 GB persistent disk, one instance, health checks, and deployment only after GitHub checks
-pass. During the initial Blueprint setup, provide these secret values:
+`render.yaml` is the zero-cost public-demo deployment shape: one Free Docker web service and one
+Free 1 GB Render Postgres database in Singapore, one web instance, health checks, and deployment
+only after GitHub checks pass. Postgres stores assignments, runs, approvals, audit events, and
+generated artifact bytes; the web container's filesystem is treated as transient. During the
+initial Blueprint setup, provide these secret values:
 
 - `COURSEFUZZ_ACCESS_KEYS_JSON`: for example, a JSON map containing a random 24-plus-character
   judge credential.
@@ -38,6 +40,11 @@ pass. During the initial Blueprint setup, provide these secret values:
 
 The server honors the hosting platform's `PORT` environment variable. Render supplies the
 deployed Git commit to the health receipt automatically.
+
+The Free web service spins down after 15 idle minutes and can take about a minute to wake. The Free
+Postgres database has no backups and expires 30 days after creation. This is acceptable only for
+the time-bounded public demonstration; recreate or upgrade the database before expiry, and never
+describe this free deployment as production infrastructure.
 
 ## Clean-environment smoke gate
 
@@ -60,7 +67,7 @@ provide `solution.py` with the assignment entrypoint so its CI can execute the g
 ## Current evidence and blocker
 
 CI builds the production image and smoke-tests the health endpoint and compiled client. The local
-API and browser golden paths are verified. A public URL, persistent hosted volume, and live GitHub
+API and browser golden paths are verified. A public URL, hosted Postgres receipt, and live GitHub
 draft-PR receipt do not exist yet, so CourseFuzz is not submission-ready or production-ready.
 
 The restricted AST runner remains a demonstration boundary even inside this container. A public

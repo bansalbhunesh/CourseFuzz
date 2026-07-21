@@ -19,7 +19,8 @@ repository has more pages, agents, or integrations.
 CourseFuzz already has the full local workflow: immutable assignment snapshots, bounded hypothesis
 generation, independent oracle execution, counterexample minimization, exact-payload approval,
 local and GitHub destinations, destination read-back, regression verification, tenant isolation,
-recovery, audit events, a responsive UI, CI, and a frozen synthetic benchmark.
+recovery, SQLite/Postgres persistence, audit events, a responsive UI, CI, and a frozen synthetic
+benchmark.
 
 The next work must close three honest gaps:
 
@@ -233,9 +234,10 @@ read-only imports.
 
 Purpose: support multiple courses without weakening approval, isolation, or recovery semantics.
 
-Refactor persistence behind repositories before changing storage:
+Harden the existing repository boundary for multi-instance operation:
 
-- Postgres for assignments, runs, approvals, leases, and append-only audit events;
+- evolve Postgres assignments, runs, approvals, and audit events with explicit migrations and
+  leases;
 - object storage for immutable source bundles, generated patches, and execution receipts;
 - a transactional outbox plus worker queue for analysis and destination actions;
 - leased jobs with heartbeat, cancellation, bounded retries, and dead-letter inspection;

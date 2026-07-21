@@ -15,7 +15,7 @@ from coursefuzz.domain.models import (
     ProgramVariant,
     TestCase,
 )
-from coursefuzz.repositories.sqlite import RunRepository
+from coursefuzz.repositories.protocol import Repository
 from coursefuzz.security.access import GLOBAL_TENANT, LOCAL_TENANT
 
 
@@ -35,7 +35,7 @@ def _snapshot_sha256(spec: AssignmentSpec) -> str:
 
 
 class AssignmentService:
-    def __init__(self, repository: RunRepository, sandbox: SubprocessPythonSandbox) -> None:
+    def __init__(self, repository: Repository, sandbox: SubprocessPythonSandbox) -> None:
         self.repository = repository
         self.sandbox = sandbox
 

@@ -16,6 +16,7 @@ from coursefuzz.adapters.sandbox import SubprocessPythonSandbox
 from coursefuzz.api.routes import build_router
 from coursefuzz.data.demo import TRIANGLE_ASSIGNMENT
 from coursefuzz.domain.engine import AssessmentEngine
+from coursefuzz.repositories.postgres import PostgresRunRepository
 from coursefuzz.repositories.sqlite import RunRepository
 from coursefuzz.security.access import AccessPolicy
 from coursefuzz.services.assignment_service import AssignmentService
@@ -29,7 +30,12 @@ def create_app(
     access_policy: AccessPolicy | None = None,
 ) -> FastAPI:
     provider = build_hypothesis_provider()
-    repository = RunRepository(database_path or os.getenv("COURSEFUZZ_DB_PATH", "coursefuzz.db"))
+    database_url = os.getenv("DATABASE_URL") if database_path is None else None
+    repository = (
+        PostgresRunRepository(database_url)
+        if database_url
+        else RunRepository(database_path or os.getenv("COURSEFUZZ_DB_PATH", "coursefuzz.db"))
+    )
     sandbox = SubprocessPythonSandbox()
     assignment_service = AssignmentService(repository, sandbox)
     assignment_service.seed(TRIANGLE_ASSIGNMENT)

@@ -13,7 +13,7 @@ from coursefuzz.domain.models import (
     RunView,
     utc_now,
 )
-from coursefuzz.repositories.sqlite import RunRepository
+from coursefuzz.repositories.protocol import Repository
 from coursefuzz.security.access import LOCAL_TENANT
 from coursefuzz.services.assignment_service import AssignmentService
 
@@ -21,7 +21,7 @@ from coursefuzz.services.assignment_service import AssignmentService
 class RunService:
     def __init__(
         self,
-        repository: RunRepository,
+        repository: Repository,
         engine: AssessmentEngine,
         assignments: AssignmentService,
         artifact_dir: str | Path,

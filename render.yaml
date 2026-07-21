@@ -2,17 +2,17 @@ services:
   - type: web
     name: coursefuzz
     runtime: docker
-    plan: starter
+    plan: free
     region: singapore
     numInstances: 1
     autoDeployTrigger: checksPass
     healthCheckPath: /api/health
     dockerContext: .
-    disk:
-      name: coursefuzz-data
-      mountPath: /app/data
-      sizeGB: 1
     envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: coursefuzz-db
+          property: connectionString
       - key: COURSEFUZZ_ACCESS_KEYS_JSON
         sync: false
       - key: COURSEFUZZ_GITHUB_TOKEN
@@ -25,3 +25,10 @@ services:
         value: "1"
       - key: COURSEFUZZ_MODEL
         value: gpt-5.6-sol
+
+databases:
+  - name: coursefuzz-db
+    plan: free
+    region: singapore
+    databaseName: coursefuzz
+    user: coursefuzz

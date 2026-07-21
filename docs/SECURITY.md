@@ -34,6 +34,8 @@
 - The canonical Compose deployment runs a non-root image with a read-only root, durable data
   volume, dropped capabilities, `no-new-privileges`, and process/memory ceilings. These protect
   the API container but do not replace per-submission hostile-code isolation.
+- Hosted deployments select Postgres through `DATABASE_URL`; local artifact bytes are copied into
+  the database so workflow evidence does not depend on the web container's transient filesystem.
 
 ## Deliberate limitations
 
@@ -47,6 +49,8 @@
   robots and license policy, prompt-injection stripping, content hashes, file limits, and code
   quarantine.
 - SQLite is durable for a single instance, not a horizontally scaled deployment.
+- The zero-cost Render database expires after 30 days and has no backups; it is a time-bounded demo
+  datastore, not production continuity.
 - GitHub branch creation and PR delivery are contract-tested with a fake transport but have not
   yet been proven against a dedicated live integration repository.
 - The seeded programs contain no personal data. No PII redaction pipeline exists yet.

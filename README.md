@@ -66,7 +66,7 @@ health endpoint explicitly reports `local-demo` authentication mode.
 React proof sheet -> typed FastAPI route -> RunService -> AssessmentEngine
        |                  |              |-> GPT-5.6/fallback hypotheses
        |                  |              `-> restricted executions + oracle
-       |                  |-> SQLite snapshots, runs, approvals, audit
+       |                  |-> SQLite/Postgres snapshots, runs, approvals, audit, artifacts
        |                  `-> local artifact or GitHub draft PR + read-back
        `-> JSON manifest import + multi-assignment switcher
 ```
@@ -115,7 +115,8 @@ Opaque-key authentication and tenant isolation are implemented for the single-in
 there is no institutional identity provider, LMS ingestion, PII pipeline, hardened multi-tenant
 sandbox, public deployment, or held-out cross-course benchmark yet. GitHub delivery is implemented
 and contract-tested with a deterministic fake transport, but still needs logged-out proof against
-a dedicated live repository. SQLite is not horizontal infrastructure. Synthetic and fallback
-behavior is visibly labelled.
+a dedicated live repository. Hosted Postgres is single-instance demo persistence, and its free
+Render instance expires after 30 days without backups. Synthetic and fallback behavior is visibly
+labelled.
 
 Apache-2.0 licensed. See [LICENSE](LICENSE).

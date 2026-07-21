@@ -16,7 +16,7 @@ from fastapi import (
     Response,
     status,
 )
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from coursefuzz.domain.models import (
@@ -79,6 +79,7 @@ def build_router(
                 "configured" if service.github_destination_available else "unconfigured"
             ),
             "auth": access.mode,
+            "storage": service.repository.backend_name,
             "commit": os.getenv(
                 "COURSEFUZZ_COMMIT_SHA",
                 os.getenv("RENDER_GIT_COMMIT", "local"),
@@ -237,7 +238,7 @@ def build_router(
     def artifact(
         run_id: str,
         principal: Principal = principal_dependency,
-    ) -> FileResponse:
+    ) -> Response:
         try:
             service.require_run(run_id, principal.tenant_id)
         except KeyError as exc:
@@ -245,12 +246,14 @@ def build_router(
         record = service.repository.artifact(run_id)
         if not record:
             raise HTTPException(status_code=404, detail="Verified artifact not found")
-        path, sha256 = record
-        return FileResponse(
-            path,
+        return Response(
+            content=record.content,
             media_type="text/x-python",
-            filename=path.name,
-            headers={"ETag": f'"{sha256}"', "X-Artifact-SHA256": sha256},
+            headers={
+                "Content-Disposition": f'attachment; filename="{record.filename}"',
+                "ETag": f'"{record.sha256}"',
+                "X-Artifact-SHA256": record.sha256,
+            },
         )
 
     @router.get("/runs/{run_id}/events")

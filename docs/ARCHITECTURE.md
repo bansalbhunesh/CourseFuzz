@@ -13,7 +13,9 @@ React proof sheet (evidence, exact approval, live/resumable audit trace)
     -> DestinationCoordinator
       -> local artifact adapter
       -> GitHub branch + draft-PR adapter
-    -> RunRepository (tenant-scoped SQLite assignments, runs, approvals, events, artifacts)
+    -> Repository protocol
+      -> tenant-scoped SQLite adapter for local/Compose use
+      -> tenant-scoped Postgres adapter for hosted workflow and artifact durability
 ```
 
 ## Trust boundary
@@ -35,7 +37,7 @@ queued -> analyzing -> approval_required -> approved -> applying -> verified
                     \-> failed                 \-> approved (retryable write failure)
 ```
 
-Every transition writes an ordered SQLite audit event. SSE clients can resume with
+Every transition writes an ordered database audit event. SSE clients can resume with
 `Last-Event-ID`. Run creation is idempotent when the same `Idempotency-Key` is reused.
 The run ID is also kept in the browser URL so a reload reconstructs state from the server;
 local storage is not treated as workflow persistence.
