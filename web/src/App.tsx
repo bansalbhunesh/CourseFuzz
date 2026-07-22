@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { GitHubConnectPanel } from "./GitHubConnectPanel";
 import type { FormEvent } from "react";
 import { AssignmentImportDialog } from "./AssignmentImportDialog";
 
@@ -53,6 +54,8 @@ type AssignmentSnapshot = {
 type Health = {
   mode: "live-gpt-5.6" | "deterministic-fallback";
   auth: "required" | "local-demo";
+  github_auth?: string;
+  github_destination?: string;
 };
 
 type Metrics = {
@@ -580,6 +583,8 @@ export function App() {
           </button>
         )}
       </section>
+
+      <GitHubConnectPanel enabled={health?.github_auth === "github-app"} />
 
       <div className="workspace">
         <section className="case-file" aria-labelledby="case-heading">

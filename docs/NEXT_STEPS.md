@@ -220,7 +220,7 @@ Do not work on two levels at once when the earlier level's proof is incomplete.
 | 2. Trustworthy truth | Consensus `OracleDecision`, abstention, provenance, UI, and audit shipped. | Add reference/property/fixture adapters and versioned stdin/stdout invocation. | Shared-bug and nondeterministic cases abstain; every displayed output links to evidence. |
 | 3. Real evidence | Frozen 20-task/500-wrong manifest, exclusions, leakage boundary, scorer, and CI verifier shipped. | Runtime-validate labels, seal baseline files, and obtain second-review signoff. | Replayable scored results with hashes, uncertainty, costs, and human signoff. |
 | 4. Better search | Shared budget, deduplication, provenance, batched verification, and maximum-coverage selection shipped. | Run equal-budget real-corpus ablations and add survivor-disagreement generation if needed. | Higher recall at equal cost, or equal recall with fewer executions, without more false kills. |
-| 5. Real instructor workflow | Repository-scoped App tokens plus target-CI read-back shipped. Signed installation callbacks, a durable installation store, dynamic per-tenant token minting, read-only repository listing, and OAuth-verified workspace binding (a workspace is bound only if the caller's GitHub account owns the installation) now shipped. | Expose the repository-picker UI over the onboarding endpoints; register the production OAuth app. | Install, analyze, approve, verified draft PR, and recovery without copying tokens or JSON. |
+| 5. Real instructor workflow | Repository-scoped App tokens plus target-CI read-back shipped. Signed installation callbacks, a durable installation store, dynamic per-tenant token minting, read-only repository listing, OAuth-verified workspace binding (a workspace is bound only if the caller's GitHub account owns the installation), and the repository-picker UI now shipped. | Register the production GitHub App + OAuth app and set the secrets; run observed instructor sessions. | Install, analyze, approve, verified draft PR, and recovery without copying tokens or JSON. |
 | 6. Durable service | Postgres persistence and atomic one-time apply claim shipped; single worker topology only. | Add migrations, transactional outbox, leases, immutable object storage, and restore drills. | Multi-instance chaos test and backup/restore exercise pass. |
 | 7. Validated product | Responsive evidence/approval UI exists; no instructor study yet. | Run five observed usability sessions on the evidence-to-approval flow. | Reviewed findings become measured product changes; keyboard, mobile, and AA gates pass. |
 
@@ -489,11 +489,13 @@ Exit gate:
 Purpose: eliminate manual manifest assembly while retaining the verified action loop.
 
 Status: **signed installation callbacks, durable installation store, per-tenant dynamic token
-minting, delivery deduplication, read-only repository listing, and OAuth-verified workspace binding
-shipped; the repository-picker UI and observed instructor sessions remain open.** Webhook delivery
-IDs are persisted; the store survives restart in both SQLite and Postgres. Binding is safe by
-construction: `GET /api/github/login` -> `GET /api/github/callback` binds a workspace only when the
-installation ID in the signed OAuth state appears in the caller's own `/user/installations`.
+minting, delivery deduplication, read-only repository listing, OAuth-verified workspace binding, and
+the repository-picker UI shipped; registering the production GitHub App/OAuth app and running
+observed instructor sessions remain open.** Webhook delivery IDs are persisted; the store survives
+restart in both SQLite and Postgres. Binding is safe by construction: `GET /api/github/login` ->
+`GET /api/github/callback` binds a workspace only when the installation ID in the signed OAuth state
+appears in the caller's own `/user/installations`. The `GitHubConnectPanel` (web) surfaces connected
+repositories and the OAuth-verified connect action when the deployment is in GitHub App mode.
 
 Choose GitHub Classroom/repository workflows first because CourseFuzz already delivers a draft
 pull request. Replace deployer-wide tokens with a GitHub App installation scoped to selected
