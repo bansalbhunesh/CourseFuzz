@@ -7,7 +7,7 @@ React proof sheet (evidence, exact approval, live/resumable audit trace)
   -> access policy + typed HTTP route
   -> AssignmentService (validation, canonicalization, content-addressed snapshots)
   -> RunService (workflow, approval, idempotency, read-back)
-    -> AssessmentEngine (mutation, oracle consensus, minimization, metrics)
+    -> AssessmentEngine (mutation, batched oracle consensus, max-coverage selection, metrics)
       -> HypothesisProvider (GPT-5.6 or deterministic fallback)
       -> ExecutionGateway (versioned ExecutionRequest -> ExecutionResult + runtime-pinned receipt)
         -> LocalRestrictedRunner (restricted syntax, total deadline; development only)

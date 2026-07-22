@@ -15,6 +15,7 @@ from coursefuzz.adapters.hypotheses import (
     ResilientHypothesisProvider,
     SurvivorHint,
 )
+from coursefuzz.domain.models import AttackHypothesis
 
 
 class _UnavailableProvider(HypothesisProvider):
@@ -35,6 +36,22 @@ class _BlockingProvider(HypothesisProvider):
         del context, survivors
         self.release.wait(timeout=1.0)
         return ()
+
+
+class _SuccessfulProvider(HypothesisProvider):
+    mode = "live-gpt-5.6"
+
+    def propose(self, context, survivors):  # type: ignore[override]
+        del context, survivors
+        return (
+            AttackHypothesis(
+                id="model-candidate",
+                inputs=(2,),
+                rationale="Probe the upper boundary.",
+                misconception="misses the upper boundary",
+                provider="gpt-5.6",
+            ),
+        )
 
 
 def _context() -> HypothesisContext:
@@ -83,6 +100,24 @@ def test_wall_timeout_returns_fallback_without_waiting_for_network_unwind() -> N
     assert elapsed < 0.2
     assert hypotheses
     assert {item.provider for item in hypotheses} == {"deterministic-fallback"}
+
+
+def test_successful_model_batch_keeps_deterministic_guardrail_candidates() -> None:
+    provider = ResilientHypothesisProvider(
+        _SuccessfulProvider(),
+        DeterministicHypothesisProvider(),
+    )
+
+    hypotheses = provider.propose(
+        _context(),
+        (SurvivorHint(id="wrong", misconception="misses a boundary"),),
+    )
+
+    assert len(hypotheses) <= 8
+    assert len({item.id for item in hypotheses}) == len(hypotheses)
+    assert len({item.inputs for item in hypotheses}) == len(hypotheses)
+    assert hypotheses[0].provider == "gpt-5.6"
+    assert "deterministic-fallback" in {item.provider for item in hypotheses}
 
 
 def test_openai_request_cannot_consume_the_oracle_deadline(

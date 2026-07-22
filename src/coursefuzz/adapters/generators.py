@@ -5,11 +5,10 @@ scheduler that deduplicates globally, records which generator produced each cand
 one shared candidate budget. It is a drop-in :class:`HypothesisProvider`, so the engine is
 unchanged and the frozen benchmark is untouched unless a scheduler is wired in deliberately.
 
-The two default generators reproduce the existing deterministic provider exactly — boundary
-combinations and instructor-case permutations — now separated so each contribution is attributable
-and ablatable. The *execution-backed* survivor-disagreement search (which needs the mutant sources
-the sanitized provider context deliberately withholds) lives in the engine's directed counterexample
-scan, not here; a source-free generator could only guess.
+The two default generators reproduce the deterministic provider exactly — boundary combinations
+plus equality-preserving permutation probes — so each contribution is attributable and ablatable.
+The engine executes every candidate against independent controls and surviving misconception
+programs in bounded batches; generators never decide correctness.
 """
 
 from __future__ import annotations
@@ -64,6 +63,20 @@ class PermutationGenerator(CandidateGenerator):
                         misconception="input-order blind spot",
                         generator=self.name,
                     )
+                    anchor = max(context.domain_min, min(context.domain_max, 1))
+                    for index, value in enumerate(permuted):
+                        if permuted.count(value) != 1 or value == anchor:
+                            continue
+                        shrunk = list(permuted)
+                        shrunk[index] = anchor
+                        yield GeneratedCandidate(
+                            inputs=tuple(shrunk),
+                            rationale=(
+                                "Preserve the equality pattern while shrinking its distinct input."
+                            ),
+                            misconception="order and magnitude interaction",
+                            generator=self.name,
+                        )
 
 
 class BoundaryGenerator(CandidateGenerator):
@@ -78,13 +91,23 @@ class BoundaryGenerator(CandidateGenerator):
         boundaries = sorted(
             {
                 context.domain_min,
+                min(context.domain_max, context.domain_min + 1),
                 context.domain_max,
+                max(context.domain_min, context.domain_max - 1),
                 0,
                 max(context.domain_min, min(context.domain_max, 1)),
             }
             & set(range(context.domain_min, context.domain_max + 1))
         )
-        for values in product(boundaries, repeat=len(context.input_names)):
+        boundary_cases = sorted(
+            product(boundaries, repeat=len(context.input_names)),
+            key=lambda values: (
+                sum(abs(value) for value in values),
+                max(abs(value) for value in values),
+                values,
+            ),
+        )
+        for values in boundary_cases:
             yield GeneratedCandidate(
                 inputs=tuple(values),
                 rationale="Combine declared domain boundaries across every input position.",

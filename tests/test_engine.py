@@ -66,7 +66,7 @@ def test_engine_finds_minimal_verified_counterexample(
     assert result.evidence["gpt_decides_correctness"] is False
 
 
-def test_directed_scan_prefers_maximum_coverage_over_a_smaller_input() -> None:
+def test_candidate_selection_prefers_maximum_coverage_over_a_smaller_input() -> None:
     """The counterexample is chosen to discriminate the MOST survivors, not to be smallest.
 
     Distilled from the maximum-pair benchmark case, where the old "minimize one winner toward its
@@ -74,8 +74,8 @@ def test_directed_scan_prefers_maximum_coverage_over_a_smaller_input() -> None:
       - ``returns-left`` is wrong whenever ``right > left``.
       - ``zero-fallback`` returns 0 when ``left < right`` -> wrong only if the true max is nonzero.
     The smallest divergent input ``(-1, 0)`` kills only ``returns-left`` (the max there is 0, which
-    ``zero-fallback`` returns correctly). A slightly larger input ``(0, 1)`` kills both. A directed
-    scan must pick ``(0, 1)`` and catch both wrong programs with a single regression test.
+    ``zero-fallback`` returns correctly). A slightly larger input ``(0, 1)`` kills both. Candidate
+    selection must pick ``(0, 1)`` and catch both wrong programs with a single regression test.
     """
 
     reference = ProgramVariant(
@@ -139,7 +139,7 @@ def test_directed_scan_prefers_maximum_coverage_over_a_smaller_input() -> None:
 
     assert result.before.surviving_mutants == 2
     assert result.candidate is not None
-    # A single directed test catches BOTH survivors; a smallness-minimized input would miss one.
+    # One maximum-coverage candidate catches BOTH survivors; a smaller input would miss one.
     assert result.candidate.test.inputs == (0, 1)
     assert set(result.candidate.target_mutants) == {"returns-left", "zero-fallback"}
     assert result.projected_after.mutation_score == 100.0
@@ -263,9 +263,9 @@ def test_engine_measures_mutants_and_controls_in_one_batch() -> None:
 
     result = engine.analyze(TRIANGLE_ASSIGNMENT)
 
-    # The mutation-measurement sweep goes through run_suite_batch, so a container backend runs it
-    # as one sandbox rather than one per program.
-    assert runner.batch_calls >= 1
+    # Baseline, accepted-control hypotheses, survivor hypotheses, and projected suite are four
+    # bounded waves. The count is independent of candidate or domain size.
+    assert runner.batch_calls == 4
     assert result.candidate is not None  # behavior is unchanged: it still finds the counterexample
 
 
