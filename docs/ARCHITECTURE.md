@@ -16,10 +16,18 @@ React proof sheet (evidence, exact approval, live/resumable audit trace)
     -> DestinationCoordinator
       -> local artifact adapter
       -> GitHub branch + draft-PR adapter
+        -> static beta token or repository-scoped GitHub App installation token
     -> Repository protocol
       -> tenant-scoped SQLite adapter for local/Compose use
       -> tenant-scoped Postgres adapter for hosted workflow and artifact durability
 ```
+
+GitHub credentials are behind an explicit provider seam. The legacy beta uses one independently
+allowlisted fine-grained token. Round 2 maps each `(tenant, repository)` pair to a GitHub App
+installation, rejects cross-workspace targets before a run is created, signs a short-lived App JWT,
+mints a repository-restricted installation token, caches it only until the refresh boundary, and
+supplies it to the unchanged draft-PR/read-back adapter. Assignment and run records never contain
+either credential.
 
 ## Trust boundary
 

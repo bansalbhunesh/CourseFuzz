@@ -35,10 +35,12 @@ class _CountingDestinations:
         self._lock = threading.Lock()
         self.apply_calls = 0
 
-    def apply(self, run_id: str, candidate: object):  # type: ignore[no-untyped-def]
+    def apply(
+        self, run_id: str, candidate: object, tenant_id: str = "local-demo"
+    ):  # type: ignore[no-untyped-def]
         with self._lock:
             self.apply_calls += 1
-        return self._inner.apply(run_id, candidate)
+        return self._inner.apply(run_id, candidate, tenant_id)
 
     def __getattr__(self, name: str):  # type: ignore[no-untyped-def]
         return getattr(self._inner, name)
@@ -49,11 +51,13 @@ class _FailOnceDestinations:
         self._inner = inner
         self.calls = 0
 
-    def apply(self, run_id: str, candidate: object):  # type: ignore[no-untyped-def]
+    def apply(
+        self, run_id: str, candidate: object, tenant_id: str = "local-demo"
+    ):  # type: ignore[no-untyped-def]
         self.calls += 1
         if self.calls == 1:
             raise RuntimeError("transient destination failure")
-        return self._inner.apply(run_id, candidate)
+        return self._inner.apply(run_id, candidate, tenant_id)
 
     def __getattr__(self, name: str):  # type: ignore[no-untyped-def]
         return getattr(self._inner, name)

@@ -61,9 +61,12 @@ Open `http://127.0.0.1:8000`. No API key is required: the bounded deterministic 
 the honest fallback. Set `OPENAI_API_KEY` to activate GPT-5.6 hypothesis generation; the model
 still never receives expected outputs and never decides correctness.
 
-For GitHub delivery, set `COURSEFUZZ_GITHUB_TOKEN` to a fine-grained token with repository
-`Contents: write` and `Pull requests: write`. The token stays in the environment and is never
-stored in an assignment or run document.
+For a single-repository beta, set `COURSEFUZZ_GITHUB_TOKEN` to a fine-grained token and keep
+`COURSEFUZZ_GITHUB_ALLOWED_REPOS` independently restricted. For multi-workspace operation, use the
+preferred GitHub App path: set `COURSEFUZZ_GITHUB_APP_ID`, `COURSEFUZZ_GITHUB_APP_PRIVATE_KEY`, and
+`COURSEFUZZ_GITHUB_INSTALLATIONS_JSON`. CourseFuzz mints a short-lived token for the exact target
+repository and authenticated workspace, refreshes it before expiry, and never stores it in an
+assignment or run document.
 
 For a shared deployment, set `COURSEFUZZ_ACCESS_KEYS_JSON` to a JSON object that maps tenant IDs
 to distinct random tokens of at least 24 characters. Protected routes accept bearer credentials;
@@ -78,7 +81,7 @@ React proof sheet -> typed FastAPI route -> RunService -> AssessmentEngine
        |                  |              |-> GPT-5.6/fallback hypotheses
        |                  |              `-> restricted executions + oracle
        |                  |-> SQLite/Postgres snapshots, runs, approvals, audit, artifacts
-       |                  `-> local artifact or GitHub draft PR + read-back
+       |                  `-> local artifact or GitHub App draft PR + read-back
        `-> JSON manifest import + multi-assignment switcher
 ```
 
@@ -142,8 +145,9 @@ docker run --rm -p 8000:8000 coursefuzz
 
 ## Current limitations
 
-Opaque-key authentication and tenant isolation are implemented for the single-instance slice;
-there is no institutional identity provider, LMS ingestion, PII pipeline, or held-out cross-course
+Opaque-key authentication, tenant isolation, and repository-scoped GitHub App credentials are
+implemented for the single-instance slice; the installation mapping is still deployment-managed,
+and there is no institutional identity provider, LMS ingestion, PII pipeline, or held-out cross-course
 benchmark yet. A no-network container backend (gVisor `runsc`) implements the execution gateway and
 is exercised in CI, but the restricted local runner is still the default analysis path and running
 genuinely untrusted code additionally needs the stdin/stdout adapter, a deployed runsc worker,

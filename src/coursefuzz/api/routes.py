@@ -79,6 +79,7 @@ def build_router(
             "github_destination": (
                 "configured" if service.github_destination_available else "unconfigured"
             ),
+            "github_auth": service.github_destination_auth_mode,
             "auth": access.mode,
             "storage": service.repository.backend_name,
             "commit": os.getenv(

@@ -27,6 +27,8 @@ Status: `covered`, `bounded`, or `release blocker`.
 | Destination mismatch | Fail if file bytes or rerun metrics differ from approved projection | API golden-path test | covered |
 | GitHub branch/PR duplicate | Reuse the run-specific branch/PR and verify exact bytes | fake-transport adapter test + live draft PR #1 | covered |
 | GitHub base drift | Bind approval to the resolved base commit before branch creation | prepared target payload | covered |
+| GitHub App partial config, wrong repository, or wrong tenant | Fail startup on partial config; reject cross-workspace target before run creation; refuse token mint outside exact mapping | credential-provider adversarial tests | covered |
+| GitHub App token expiry | Refresh repository-scoped token before the 60-second safety boundary | fixed-clock cache test | covered |
 | Frozen-evaluation leakage | Providers receive no source, oracle outputs, witnesses, or thresholds | sanitized context test + post-inference threshold load | covered |
 | Real-course generalization | License-reviewed external corpus and independent human labels | synthetic v1 is not sufficient | release blocker |
 | Missing submission evidence | Fail release if app, video, repo, or live GitHub proof URL is absent | release manifest + submission guard test | covered |

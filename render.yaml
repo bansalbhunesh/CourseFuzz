@@ -19,6 +19,12 @@ services:
         sync: false
       - key: COURSEFUZZ_GITHUB_ALLOWED_REPOS
         sync: false
+      - key: COURSEFUZZ_GITHUB_APP_ID
+        sync: false
+      - key: COURSEFUZZ_GITHUB_APP_PRIVATE_KEY
+        sync: false
+      - key: COURSEFUZZ_GITHUB_INSTALLATIONS_JSON
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: COURSEFUZZ_COOKIE_SECURE

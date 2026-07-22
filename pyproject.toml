@@ -4,12 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "coursefuzz"
-version = "0.1.0"
+version = "0.2.0"
 description = "Execution-backed autograder red-team and repair system"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 dependencies = [
+  "cryptography>=45,<47",
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
   "openai>=1.66,<3",

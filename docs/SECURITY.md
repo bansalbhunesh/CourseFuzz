@@ -25,6 +25,10 @@
 - GitHub tokens remain environment-only. Fine-grained `Contents: write` and `Pull requests: write`
   are sufficient; workflow-file writes are never generated. The adapter also fails closed unless
   the destination appears in the server-side `COURSEFUZZ_GITHUB_ALLOWED_REPOS` allowlist.
+- The Round-2 GitHub App path removes the deploy-wide write token: an RSA-signed App JWT mints a
+  short-lived token restricted to the exact repository mapped to that tenant and installation.
+  Cross-workspace targets are rejected before run creation; repository scope is checked again
+  before token minting and at the destination boundary. Partial App configuration fails at startup.
 - API keys are environment-only and ignored by Git.
 - Optional opaque-key authentication fails closed when configured. Browser keys are exchanged for
   eight-hour HttpOnly, SameSite-strict cookies; direct clients may use bearer authentication.
@@ -52,6 +56,7 @@ a description.
 | A verified write means the exact bytes are present | destination returns tampered read-back bytes | `tests/test_github_destination.py` |
 | Local writes cannot escape the run directory | patch target carries a traversing path | `tests/test_github_destination.py` |
 | The external write is idempotent on retry | run branch, draft PR, and file already exist | `tests/test_github_destination.py` |
+| GitHub credential scope | unknown repository, partial App configuration, invalid/expiring token boundary | `tests/test_github_app_credentials.py` |
 | Approval binds the exact payload | stale hash, forged token, rotated token, replay after verify | `tests/test_approval_binding.py` |
 | No false "verified" | post-write metrics diverge from the approved projection | `tests/test_approval_binding.py` |
 | Exactly-once logical apply | concurrent claims plus crash after approval consumption | `tests/test_exactly_once.py`, `tests/test_recovery.py` |
@@ -84,8 +89,9 @@ latter remains bounded as described below.
 - GitHub branch creation, draft-PR delivery, byte read-back, and target-CI verification are both
   contract-tested and proven against the dedicated public Demo Target in
   [draft PR #1](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/1). The shared beta token
-  is still a release-scoped integration credential; broad production use requires per-installation
-  GitHub App tokens and revocation.
+  can still use a release-scoped integration credential; the Round-2 provider can mint
+  per-installation tokens, but installation discovery, signed callbacks, and revocation UI are not
+  self-serve yet. The exact mapping remains deployment-managed in this first slice.
 - The seeded programs contain no personal data. No PII redaction pipeline exists yet.
 
 Do not describe the current runner as production-safe arbitrary-code execution.
