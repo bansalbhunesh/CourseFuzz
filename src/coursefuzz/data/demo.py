@@ -1,4 +1,9 @@
-from coursefuzz.domain.models import AssignmentSpec, ProgramVariant, TestCase
+from coursefuzz.domain.models import (
+    AssignmentSpec,
+    GitHubPullRequestDestination,
+    ProgramVariant,
+    TestCase,
+)
 
 REFERENCE = ProgramVariant(
     id="reference",
@@ -198,7 +203,23 @@ TRIANGLE_ASSIGNMENT = AssignmentSpec(
 )
 
 
-ASSIGNMENTS = {TRIANGLE_ASSIGNMENT.id: TRIANGLE_ASSIGNMENT}
+TRIANGLE_GITHUB_ASSIGNMENT = TRIANGLE_ASSIGNMENT.model_copy(
+    update={
+        "id": "triangle-classifier-github-demo",
+        "title": "Triangle classifier — GitHub proof",
+        "destination": GitHubPullRequestDestination(
+            repository="bansalbhunesh/CourseFuzz-Demo-Target",
+            base_branch="main",
+            test_directory="tests/coursefuzz",
+        ),
+    }
+)
+
+
+ASSIGNMENTS = {
+    TRIANGLE_ASSIGNMENT.id: TRIANGLE_ASSIGNMENT,
+    TRIANGLE_GITHUB_ASSIGNMENT.id: TRIANGLE_GITHUB_ASSIGNMENT,
+}
 
 
 def get_assignment(assignment_id: str) -> AssignmentSpec:
