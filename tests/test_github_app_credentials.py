@@ -131,9 +131,7 @@ def test_github_app_refreshes_token_inside_expiry_safety_boundary() -> None:
             201,
             json={
                 "token": f"ghs_token_{requests}",
-                "expires_at": (current[0] + timedelta(hours=1))
-                .isoformat()
-                .replace("+00:00", "Z"),
+                "expires_at": (current[0] + timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
             },
         )
 
@@ -178,9 +176,7 @@ def test_destination_uses_installation_token_for_exact_repository() -> None:
                 201,
                 json={
                     "token": "ghs_exact_repository",
-                    "expires_at": (now + timedelta(hours=1))
-                    .isoformat()
-                    .replace("+00:00", "Z"),
+                    "expires_at": (now + timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
                 },
             )
         assert request.url.path == f"/repos/{REPOSITORY}/commits/{'a' * 40}/check-runs"

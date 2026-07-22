@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,7 @@ def compute_differential_matrix(
     results_grid: dict[str, dict[str, bool]],  # test_label -> {mutant_id -> passed}
 ) -> DifferentialMatrixResult:
     """Compute 2D mutant coverage matrix, mutant clusters, and test subsumption pairs."""
-    
+
     # 1. Equivalence Clusters (Group mutants by failure vector across all tests)
     mutant_signatures: dict[str, list[str]] = {}
     for mut_id in mutant_ids:
@@ -56,10 +56,12 @@ def compute_differential_matrix(
 
     # 2. Test Subsumption (Test A subsumes Test B if Test A kills all mutants Test B kills AND more)
     subsumption_pairs: list[SubsumptionPair] = []
-    
+
     # Precalculate killed mutant sets for each test
     killed_sets: dict[str, set[str]] = {
-        label: {mut_id for mut_id in mutant_ids if not results_grid.get(label, {}).get(mut_id, True)}
+        label: {
+            mut_id for mut_id in mutant_ids if not results_grid.get(label, {}).get(mut_id, True)
+        }
         for label in test_labels
     }
 

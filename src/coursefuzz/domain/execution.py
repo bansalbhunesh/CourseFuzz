@@ -32,10 +32,10 @@ EXECUTION_CONTRACT_VERSION = 1
 class ExecutionOutcome(StrEnum):
     """The single outcome of one execution request against one program."""
 
-    COMPLETED = "completed"          # ran to completion on every test; passed/failed are meaningful
-    REJECTED = "rejected"            # source violated the restricted-language contract
-    TIMED_OUT = "timed_out"          # wall deadline exceeded
-    OUTPUT_LIMIT = "output_limit"    # captured output exceeded the byte ceiling
+    COMPLETED = "completed"  # ran to completion on every test; passed/failed are meaningful
+    REJECTED = "rejected"  # source violated the restricted-language contract
+    TIMED_OUT = "timed_out"  # wall deadline exceeded
+    OUTPUT_LIMIT = "output_limit"  # captured output exceeded the byte ceiling
     RUNTIME_ERROR = "runtime_error"  # the runner produced no usable result
 
 

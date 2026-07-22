@@ -48,12 +48,9 @@ class AccessPolicy:
             except json.JSONDecodeError as exc:
                 raise ValueError("COURSEFUZZ_ACCESS_KEYS_JSON must be valid JSON") from exc
             if not isinstance(parsed, dict) or not all(
-                isinstance(key, str) and isinstance(value, str)
-                for key, value in parsed.items()
+                isinstance(key, str) and isinstance(value, str) for key, value in parsed.items()
             ):
-                raise ValueError(
-                    "COURSEFUZZ_ACCESS_KEYS_JSON must map tenant IDs to opaque tokens"
-                )
+                raise ValueError("COURSEFUZZ_ACCESS_KEYS_JSON must map tenant IDs to opaque tokens")
             tenant_tokens = dict(parsed)
         else:
             tenant_tokens = {}

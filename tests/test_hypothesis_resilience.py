@@ -159,10 +159,10 @@ def test_openai_hypothesis_step_uses_low_reasoning_effort() -> None:
                     )
                 ]
             )
-            
+
     class _FakeChat:
         completions = _FakeCompletions()
-        
+
     class _FakeBeta:
         chat = _FakeChat()
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Protocol
 
@@ -28,7 +27,7 @@ class LocalBlobStorage:
         filepath = self.base_dir / safe_key
         filepath.parent.mkdir(parents=True, exist_ok=True)
         filepath.write_bytes(data)
-        
+
         # In a real environment, this might be a file:// or s3:// URI
         # For simplicity, we just return a prefixed string
         return f"file://{filepath.as_posix()}"
@@ -37,8 +36,8 @@ class LocalBlobStorage:
         if not uri.startswith("file://"):
             return None
         filepath = Path(uri[7:])
-        
+
         if not filepath.exists() or not filepath.is_file():
             return None
-        
+
         return filepath.read_bytes()

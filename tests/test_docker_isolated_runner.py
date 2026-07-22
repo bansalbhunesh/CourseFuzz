@@ -284,13 +284,17 @@ def _docker_image_ready() -> bool:
     try:
         info = subprocess.run(
             ["docker", "info", "--format", "{{.ServerVersion}}"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         if info.returncode != 0:
             return False
         image = subprocess.run(
             ["docker", "image", "inspect", "coursefuzz:local"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         return image.returncode == 0
     except Exception:
@@ -303,7 +307,9 @@ def _gvisor_ready() -> bool:
     try:
         info = subprocess.run(
             ["docker", "info", "--format", "{{range $k,$v := .Runtimes}}{{$k}} {{end}}"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         return "runsc" in info.stdout.split()
     except Exception:
@@ -338,8 +344,16 @@ def test_no_network_flag_actually_denies_network() -> None:
     probe = "import socket; socket.create_connection(('1.1.1.1', 53), timeout=3)"
     completed = subprocess.run(  # noqa: S603
         [
-            "docker", "run", "--rm", "--network", "none",
-            "--entrypoint", "python", "coursefuzz:local", "-c", probe,
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--entrypoint",
+            "python",
+            "coursefuzz:local",
+            "-c",
+            probe,
         ],
         capture_output=True,
         text=True,

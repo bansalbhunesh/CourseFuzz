@@ -31,11 +31,16 @@ def _is_public_https_url(value: object) -> bool:
     if not isinstance(value, str):
         return False
     parsed = urlparse(value)
-    return parsed.scheme == "https" and bool(parsed.netloc) and parsed.hostname not in {
-        "example.com",
-        "localhost",
-        "127.0.0.1",
-    }
+    return (
+        parsed.scheme == "https"
+        and bool(parsed.netloc)
+        and parsed.hostname
+        not in {
+            "example.com",
+            "localhost",
+            "127.0.0.1",
+        }
+    )
 
 
 def check_release(
@@ -54,9 +59,7 @@ def check_release(
     expected = json.loads(
         (root / "evaluations" / "frozen_expectations.json").read_text(encoding="utf-8")
     )
-    report = json.loads(
-        (root / manifest["frozen_benchmark"]["report"]).read_text(encoding="utf-8")
-    )
+    report = json.loads((root / manifest["frozen_benchmark"]["report"]).read_text(encoding="utf-8"))
     declared_digest = manifest["frozen_benchmark"].get("corpus_sha256")
     if declared_digest != expected.get("corpus_sha256"):
         failures.append("release manifest benchmark digest differs from frozen expectations")

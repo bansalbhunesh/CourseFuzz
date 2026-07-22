@@ -176,10 +176,7 @@ class RunService:
                     )
                     or self.mode,
                     "providers": sorted(
-                        {
-                            verdict.hypothesis.provider
-                            for verdict in analysis.hypothesis_verdicts
-                        }
+                        {verdict.hypothesis.provider for verdict in analysis.hypothesis_verdicts}
                     ),
                 },
             )
@@ -489,9 +486,7 @@ class RunService:
             raise KeyError(run_id)
         return run
 
-    def build_evidence_bundle(
-        self, run_id: str, tenant_id: str = LOCAL_TENANT
-    ) -> EvidenceBundle:
+    def build_evidence_bundle(self, run_id: str, tenant_id: str = LOCAL_TENANT) -> EvidenceBundle:
         """Assemble a self-contained, independently re-hashable record of one run's evidence.
 
         Tenant-scoped: ``require_run`` raises ``KeyError`` for a missing or foreign run. The bundle

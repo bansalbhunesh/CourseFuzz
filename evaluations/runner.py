@@ -82,9 +82,7 @@ def _percentile(values: list[float], percentile: float) -> float:
 def _validate_case(case: AssignmentSpec) -> None:
     if len(case.accepted_solutions) < 2:
         raise ValueError(f"{case.id}: benchmark cases require two accepted controls")
-    if len({program.source for program in case.accepted_solutions}) != len(
-        case.accepted_solutions
-    ):
+    if len({program.source for program in case.accepted_solutions}) != len(case.accepted_solutions):
         raise ValueError(f"{case.id}: accepted controls must be independently authored")
     for program in (*case.accepted_solutions, *case.mutants):
         validate_source(program.source, case.entrypoint)
@@ -162,13 +160,11 @@ def run_inference() -> dict:
         "coursefuzz_mutation_score": _percent(coursefuzz_killed, total_mutants),
         "random_8_mutation_score": _percent(random_killed, total_mutants),
         "coursefuzz_gain_points": round(
-            _percent(coursefuzz_killed, total_mutants)
-            - _percent(initial_killed, total_mutants),
+            _percent(coursefuzz_killed, total_mutants) - _percent(initial_killed, total_mutants),
             1,
         ),
         "coursefuzz_advantage_over_random_8_points": round(
-            _percent(coursefuzz_killed, total_mutants)
-            - _percent(random_killed, total_mutants),
+            _percent(coursefuzz_killed, total_mutants) - _percent(random_killed, total_mutants),
             1,
         ),
         "false_kill_rate": _percent(coursefuzz_false_kills, accepted_programs),

@@ -218,8 +218,14 @@ class DockerIsolatedRunner(ExecutionGateway):
             wall_ms = self._elapsed_ms(started)
             return [
                 self._assemble(
-                    r, ExecutionOutcome.TIMED_OUT, 0, len(r.tests),
-                    "Execution exceeded the total deadline", "wall-deadline-exceeded", wall_ms, (),
+                    r,
+                    ExecutionOutcome.TIMED_OUT,
+                    0,
+                    len(r.tests),
+                    "Execution exceeded the total deadline",
+                    "wall-deadline-exceeded",
+                    wall_ms,
+                    (),
                 )
                 for r in batch
             ]
@@ -237,8 +243,14 @@ class DockerIsolatedRunner(ExecutionGateway):
             )
             return [
                 self._assemble(
-                    r, ExecutionOutcome.RUNTIME_ERROR, 0, len(r.tests),
-                    error, "runner-error", wall_ms, (),
+                    r,
+                    ExecutionOutcome.RUNTIME_ERROR,
+                    0,
+                    len(r.tests),
+                    error,
+                    "runner-error",
+                    wall_ms,
+                    (),
                 )
                 for r in batch
             ]
@@ -362,9 +374,7 @@ class DockerIsolatedRunner(ExecutionGateway):
                 or (completed.stderr[:500] if completed.stderr else "Runner failed")
             )
             return _RawRun(
-                outcome=(
-                    ExecutionOutcome.REJECTED if rejected else ExecutionOutcome.RUNTIME_ERROR
-                ),
+                outcome=(ExecutionOutcome.REJECTED if rejected else ExecutionOutcome.RUNTIME_ERROR),
                 passed=0,
                 failed=num_tests,
                 error=error,

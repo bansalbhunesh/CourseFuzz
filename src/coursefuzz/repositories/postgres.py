@@ -9,9 +9,9 @@ import psycopg
 from psycopg.rows import dict_row
 
 from coursefuzz.domain.models import AssignmentSnapshot, AuditEvent, RunStatus, RunView
+from coursefuzz.repositories.blob_storage import BlobStorage
 from coursefuzz.repositories.types import ArtifactRecord
 from coursefuzz.security.access import GLOBAL_TENANT, LOCAL_TENANT
-from coursefuzz.repositories.blob_storage import BlobStorage
 
 
 def _utc_iso() -> str:
@@ -33,6 +33,7 @@ class PostgresRunRepository:
 
     def _run_migrations(self) -> None:
         from coursefuzz.repositories.migrator import Migrator
+
         migrations_dir = Path(__file__).parent / "migrations"
         migrator = Migrator(self.dsn, migrations_dir)
         migrator.migrate()
@@ -132,25 +133,24 @@ class PostgresRunRepository:
         owner_id: str = LOCAL_TENANT,
     ) -> tuple[RunView, bool]:
         scoped_idempotency_key = f"{owner_id}:{idempotency_key}"
-        with self._connect() as connection:
-            with connection.transaction():
-                existing = connection.execute(
-                    "SELECT document FROM runs WHERE idempotency_key = %s",
-                    (scoped_idempotency_key,),
-                ).fetchone()
-                if existing:
-                    return RunView.model_validate_json(existing["document"]), False
-                now = _utc_iso()
-                connection.execute(
-                    "INSERT INTO runs"
-                    "(id, idempotency_key, document, created_at, updated_at, owner_id) "
-                    "VALUES (%s, %s, %s, %s, %s, %s)",
-                    (run.id, scoped_idempotency_key, run.model_dump_json(), now, now, owner_id),
-                )
-                connection.execute(
-                    "INSERT INTO outbox_events (run_id, event_type, payload) VALUES (%s, %s, %s)",
-                    (run.id, "run_created", "{}")
-                )
+        with self._connect() as connection, connection.transaction():
+            existing = connection.execute(
+                "SELECT document FROM runs WHERE idempotency_key = %s",
+                (scoped_idempotency_key,),
+            ).fetchone()
+            if existing:
+                return RunView.model_validate_json(existing["document"]), False
+            now = _utc_iso()
+            connection.execute(
+                "INSERT INTO runs"
+                "(id, idempotency_key, document, created_at, updated_at, owner_id) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
+                (run.id, scoped_idempotency_key, run.model_dump_json(), now, now, owner_id),
+            )
+            connection.execute(
+                "INSERT INTO outbox_events (run_id, event_type, payload) VALUES (%s, %s, %s)",
+                (run.id, "run_created", "{}"),
+            )
         return run, True
 
     def get(self, run_id: str, owner_id: str = LOCAL_TENANT) -> RunView | None:
@@ -184,9 +184,7 @@ class PostgresRunRepository:
                 "ORDER BY updated_at ASC LIMIT %s",
                 ("queued", "analyzing", "applying", "external_ci_pending", limit),
             ).fetchall()
-        return [
-            (row["owner_id"], RunView.model_validate_json(row["document"])) for row in rows
-        ]
+        return [(row["owner_id"], RunView.model_validate_json(row["document"])) for row in rows]
 
     def claim_run_for_worker(self, worker_id: str, limit: int = 1) -> list[tuple[str, RunView]]:
         """Claims available runs for a worker using SKIP LOCKED."""
@@ -205,11 +203,9 @@ class PostgresRunRepository:
                 )
                 RETURNING owner_id, document
                 """,
-                (worker_id, limit)
+                (worker_id, limit),
             ).fetchall()
-        return [
-            (row["owner_id"], RunView.model_validate_json(row["document"])) for row in rows
-        ]
+        return [(row["owner_id"], RunView.model_validate_json(row["document"])) for row in rows]
 
     def heartbeat_lease(self, run_id: str, worker_id: str) -> bool:
         """Extends a worker's lease on a run."""
@@ -220,7 +216,7 @@ class PostgresRunRepository:
                 SET leased_until = NOW() + INTERVAL '5 minutes'
                 WHERE id = %s AND leased_by = %s
                 """,
-                (run_id, worker_id)
+                (run_id, worker_id),
             )
             return cursor.rowcount > 0
 
@@ -233,7 +229,7 @@ class PostgresRunRepository:
                 SET leased_by = NULL, leased_until = NULL
                 WHERE id = %s AND leased_by = %s
                 """,
-                (run_id, worker_id)
+                (run_id, worker_id),
             )
 
     def save(self, run: RunView) -> None:
@@ -274,8 +270,7 @@ class PostgresRunRepository:
             if cursor.rowcount != 1:
                 return False
             consumed = connection.execute(
-                "UPDATE approvals SET consumed_at = %s "
-                "WHERE run_id = %s AND consumed_at IS NULL",
+                "UPDATE approvals SET consumed_at = %s WHERE run_id = %s AND consumed_at IS NULL",
                 (_utc_iso(), run.id),
             )
             return consumed.rowcount == 1
@@ -365,7 +360,7 @@ class PostgresRunRepository:
         if self.blob_storage:
             key = f"runs/{run_id}/artifacts/{path.name}"
             uri = self.blob_storage.put(key, content)
-            
+
         with self._connect() as connection:
             if uri:
                 connection.execute(
@@ -397,16 +392,16 @@ class PostgresRunRepository:
             ).fetchone()
         if not row:
             return None
-            
+
         content = None
         if row["uri"] and self.blob_storage:
             content = self.blob_storage.get(row["uri"])
         if content is None and row["content"] is not None:
             content = bytes(row["content"])
-            
+
         if content is None:
             return None
-            
+
         return ArtifactRecord(
             filename=row["filename"],
             sha256=row["sha256"],

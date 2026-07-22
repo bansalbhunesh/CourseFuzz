@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from coursefuzz.domain.ast_analyzer import analyze_source_ast
-from coursefuzz.domain.sandbox import run_in_isolated_sandbox
 from coursefuzz.domain.coverage import compute_differential_matrix
+from coursefuzz.domain.sandbox import run_in_isolated_sandbox
 
 
 def test_ast_analyzer_extracts_boundary_constants_and_operators() -> None:
@@ -40,13 +40,13 @@ def test_isolated_sandbox_handles_timeout() -> None:
 def test_compute_differential_matrix_and_subsumption() -> None:
     test_labels = ["test_1", "test_2"]
     mutant_ids = ["mut_A", "mut_B"]
-    
+
     # test_1 kills mut_A and mut_B; test_2 kills mut_A only
     grid = {
         "test_1": {"mut_A": False, "mut_B": False},
         "test_2": {"mut_A": False, "mut_B": True},
     }
-    
+
     diff = compute_differential_matrix(test_labels, mutant_ids, grid)
     assert len(diff.equivalence_clusters) == 2
     # test_1 subsumes test_2 because test_1 kills a strict superset of test_2

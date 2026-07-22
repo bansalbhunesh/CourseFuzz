@@ -27,9 +27,7 @@ CODE_CONTESTS_COMMIT = "fa7a4f8139aab08362503f3344778eb86901709a"
 CODENET_COMMIT = "55c323b527ab3d6510d55edff188bc0a0d7bc5e5"
 ROWS_ENDPOINT = "https://datasets-server.huggingface.co/rows"
 DATASET_API = f"https://huggingface.co/api/datasets/{DATASET_ID}"
-PARQUET_BASE = (
-    f"https://huggingface.co/datasets/{DATASET_ID}/resolve/{DATASET_REVISION}/data"
-)
+PARQUET_BASE = f"https://huggingface.co/datasets/{DATASET_ID}/resolve/{DATASET_REVISION}/data"
 
 # The first five pinned train shards contain enough eligible CodeNet-origin Python 3 records for
 # the v1 gate. Restricting the scope keeps regeneration bounded and makes every exclusion auditable.
@@ -150,8 +148,7 @@ class CorpusManifest(BaseModel):
         if sum(len(task.wrong_programs) for task in self.tasks) != expected_wrong:
             raise ValueError(f"manifest requires exactly {expected_wrong} wrong programs")
         if any(
-            len(task.accepted_controls) != self.accepted_controls_per_task
-            for task in self.tasks
+            len(task.accepted_controls) != self.accepted_controls_per_task for task in self.tasks
         ):
             raise ValueError("accepted-control count differs from the frozen policy")
         if len({task.task_id for task in self.tasks}) != len(self.tasks):
@@ -330,9 +327,7 @@ class CodeContestsSource:
         self._head_verified = True
 
 
-def metadata_exclusion_reasons(
-    item: MetadataRecord, policy: SelectionPolicy
-) -> tuple[str, ...]:
+def metadata_exclusion_reasons(item: MetadataRecord, policy: SelectionPolicy) -> tuple[str, ...]:
     reasons: list[str] = []
     if item.source not in policy.allowed_sources:
         reasons.append("source-not-codenet-origin")
@@ -551,9 +546,7 @@ def verify_cached_row(task: TaskReceipt, row: Mapping[str, Any]) -> None:
         raise ValueError(f"{task.task_id}: cached raw row does not match its frozen SHA-256")
 
 
-def selected_source(
-    row: Mapping[str, Any], role: str, receipt: ProgramReceipt
-) -> str:
+def selected_source(row: Mapping[str, Any], role: str, receipt: ProgramReceipt) -> str:
     field = "incorrect_solutions" if role == "wrong" else "solutions"
     sources = row[field]["solution"]
     languages = row[field]["language"]

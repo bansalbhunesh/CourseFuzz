@@ -27,7 +27,7 @@ class Migrator:
                 )
                 """
             )
-            
+
             # 2. Find applied migrations
             rows = connection.execute("SELECT version FROM schema_migrations").fetchall()
             applied = {row["version"] for row in rows}
@@ -55,4 +55,3 @@ class Migrator:
                             )
             finally:
                 connection.execute("SELECT pg_advisory_unlock(123456789)")
-

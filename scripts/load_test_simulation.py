@@ -5,13 +5,14 @@ import logging
 import time
 from dataclasses import dataclass
 
-from coursefuzz.domain.engine import AssessmentEngine
 from coursefuzz.adapters.hypotheses import DeterministicHypothesisProvider
 from coursefuzz.adapters.sandbox import LocalRestrictedRunner
+from coursefuzz.domain.engine import AssessmentEngine
+from coursefuzz.domain.models import AssignmentSpec, ProgramVariant, TestCase
 from coursefuzz.domain.oracle import CompositeOracle
-from coursefuzz.domain.models import AssignmentSpec, TestCase, ProgramVariant
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
 
 @dataclass
 class LoadTestMetrics:
@@ -20,6 +21,7 @@ class LoadTestMetrics:
     failed_runs: int
     total_time_seconds: float
     errors: list[str]
+
 
 def create_sample_assignment(run_id: int) -> AssignmentSpec:
     return AssignmentSpec(
@@ -33,13 +35,13 @@ def create_sample_assignment(run_id: int) -> AssignmentSpec:
         reference=ProgramVariant(
             id=f"ref-{run_id}",
             title="Reference",
-            source="def absolute_value(n):\n    return n if n >= 0 else -n\n"
+            source="def absolute_value(n):\n    return n if n >= 0 else -n\n",
         ),
         accepted_solutions=(
             ProgramVariant(
                 id=f"ctrl-{run_id}",
                 title="Control",
-                source="def absolute_value(n):\n    return abs(n)\n"
+                source="def absolute_value(n):\n    return abs(n)\n",
             ),
         ),
         mutants=(
@@ -47,13 +49,13 @@ def create_sample_assignment(run_id: int) -> AssignmentSpec:
                 id=f"mut-{run_id}-1",
                 title="Buggy Always Negate",
                 misconception="Always negates",
-                source="def absolute_value(n):\n    return -n\n"
+                source="def absolute_value(n):\n    return -n\n",
             ),
             ProgramVariant(
                 id=f"mut-{run_id}-2",
                 title="Buggy Always Positive",
                 misconception="Returns n unchanged",
-                source="def absolute_value(n):\n    return n\n"
+                source="def absolute_value(n):\n    return n\n",
             ),
         ),
         instructor_tests=(
@@ -61,6 +63,7 @@ def create_sample_assignment(run_id: int) -> AssignmentSpec:
             TestCase(inputs=(0,), expected=0, label="zero"),
         ),
     )
+
 
 def simulate_user_run(run_id: int) -> tuple[bool, str | None]:
     try:
@@ -78,17 +81,22 @@ def simulate_user_run(run_id: int) -> tuple[bool, str | None]:
     except Exception as exc:
         return False, f"Run {run_id} failed: {type(exc).__name__}: {exc}"
 
-def run_1000_user_load_test(concurrent_workers: int = 50, total_simulations: int = 1000) -> LoadTestMetrics:
-    logging.info(f"Starting 1,000 user load test simulation ({concurrent_workers} concurrent workers)...")
+
+def run_1000_user_load_test(
+    concurrent_workers: int = 50, total_simulations: int = 1000
+) -> LoadTestMetrics:
+    logging.info(
+        f"Starting 1,000 user load test simulation ({concurrent_workers} concurrent workers)..."
+    )
     start_time = time.monotonic()
-    
+
     successful = 0
     failed = 0
     errors: list[str] = []
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=concurrent_workers) as executor:
         futures = {executor.submit(simulate_user_run, i): i for i in range(total_simulations)}
-        
+
         for future in concurrent.futures.as_completed(futures):
             run_id = futures[future]
             try:
@@ -108,8 +116,10 @@ def run_1000_user_load_test(concurrent_workers: int = 50, total_simulations: int
 
     elapsed = time.monotonic() - start_time
     logging.info(f"Load test finished in {elapsed:.2f} seconds.")
-    logging.info(f"Successful: {successful}/{total_simulations} | Failed: {failed}/{total_simulations}")
-    
+    logging.info(
+        f"Successful: {successful}/{total_simulations} | Failed: {failed}/{total_simulations}"
+    )
+
     return LoadTestMetrics(
         total_runs=total_simulations,
         successful_runs=successful,
@@ -117,6 +127,7 @@ def run_1000_user_load_test(concurrent_workers: int = 50, total_simulations: int
         total_time_seconds=elapsed,
         errors=errors,
     )
+
 
 if __name__ == "__main__":
     metrics = run_1000_user_load_test()

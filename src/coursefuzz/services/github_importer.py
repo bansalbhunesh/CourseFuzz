@@ -2,14 +2,11 @@ from __future__ import annotations
 
 import base64
 import json
-from datetime import UTC, datetime
-from typing import Any
 
 import httpx
 
 from coursefuzz.domain.models import (
     AssignmentCreate,
-    DestinationConfig,
     GitHubImportProvenance,
     GitHubPullRequestDestination,
     InstructorTestInput,
@@ -44,7 +41,9 @@ class GitHubImporterService:
             "X-GitHub-Api-Version": "2022-11-28",
         }
 
-    def _fetch_file(self, repository: str, commit_sha: str, path: str, headers: dict[str, str]) -> str | None:
+    def _fetch_file(
+        self, repository: str, commit_sha: str, path: str, headers: dict[str, str]
+    ) -> str | None:
         response = self._client.get(
             f"/repos/{repository}/contents/{path}?ref={commit_sha}",
             headers=headers,
@@ -58,14 +57,16 @@ class GitHubImporterService:
         data = response.json()
         if data.get("type") != "file":
             raise GitHubImportError(f"Path {path} is not a file")
-        
+
         content = data.get("content", "")
         encoding = data.get("encoding", "")
         if encoding == "base64":
             return base64.b64decode(content).decode("utf-8")
         return content
 
-    def _list_directory(self, repository: str, commit_sha: str, path: str, headers: dict[str, str]) -> list[dict[str, str]]:
+    def _list_directory(
+        self, repository: str, commit_sha: str, path: str, headers: dict[str, str]
+    ) -> list[dict[str, str]]:
         response = self._client.get(
             f"/repos/{repository}/contents/{path}?ref={commit_sha}",
             headers=headers,
@@ -92,7 +93,9 @@ class GitHubImporterService:
     ) -> str:
         """Imports an assignment from a GitHub repository and returns the assignment ID."""
         if not self._provider.allows(repository, tenant_id):
-            raise GitHubImportError(f"Tenant {tenant_id} is not authorized for repository {repository}")
+            raise GitHubImportError(
+                f"Tenant {tenant_id} is not authorized for repository {repository}"
+            )
 
         headers = self._get_headers(repository, tenant_id)
 
@@ -100,11 +103,11 @@ class GitHubImporterService:
         config_text = self._fetch_file(repository, commit_sha, "assignment.json", headers)
         if not config_text:
             raise GitHubImportError("assignment.json is missing in the repository root")
-        
+
         try:
             config = json.loads(config_text)
         except json.JSONDecodeError as exc:
-            raise GitHubImportError(f"Invalid assignment.json: {exc}")
+            raise GitHubImportError(f"Invalid assignment.json: {exc}") from exc
 
         # 2. Read reference solution
         ref_path = config.get("reference_path", "reference.py")
@@ -134,7 +137,9 @@ class GitHubImporterService:
                 )
 
         if not accepted_solutions:
-            raise GitHubImportError("At least one accepted control program is required in the 'accepted' directory")
+            raise GitHubImportError(
+                "At least one accepted control program is required in the 'accepted' directory"
+            )
 
         # 4. Read misconception submissions
         misconceptions = []
@@ -152,7 +157,9 @@ class GitHubImporterService:
                 )
 
         if not misconceptions:
-            raise GitHubImportError("At least one misconception program is required in the 'misconceptions' directory")
+            raise GitHubImportError(
+                "At least one misconception program is required in the 'misconceptions' directory"
+            )
 
         # 5. Build instructor tests
         tests_data = config.get("instructor_tests", [])

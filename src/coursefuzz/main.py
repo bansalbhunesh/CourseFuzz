@@ -98,7 +98,12 @@ def create_app(
     )
     app.include_router(
         build_router(
-            service, assignment_service, access, installation_store, oauth_client, rate_limiter,
+            service,
+            assignment_service,
+            access,
+            installation_store,
+            oauth_client,
+            rate_limiter,
         )
     )
 

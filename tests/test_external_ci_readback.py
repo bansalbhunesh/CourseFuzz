@@ -113,9 +113,7 @@ def _make_pending_run(service: RunService) -> str:
         external_ci_started_at=STARTED,
     )
     service.repository.save(
-        run.model_copy(
-            update={"status": RunStatus.EXTERNAL_CI_PENDING, "action_receipt": receipt}
-        )
+        run.model_copy(update={"status": RunStatus.EXTERNAL_CI_PENDING, "action_receipt": receipt})
     )
     return run.id
 
@@ -127,9 +125,7 @@ _COMPLETED_SUCCESS = {
 _COMPLETED_FAILURE = {
     "check_runs": [{"status": "completed", "conclusion": "failure", "html_url": _RUN_URL}]
 }
-_IN_PROGRESS = {
-    "check_runs": [{"status": "in_progress", "conclusion": None, "html_url": _RUN_URL}]
-}
+_IN_PROGRESS = {"check_runs": [{"status": "in_progress", "conclusion": None, "html_url": _RUN_URL}]}
 
 
 def test_github_apply_holds_at_external_ci_pending(tmp_path: Path) -> None:

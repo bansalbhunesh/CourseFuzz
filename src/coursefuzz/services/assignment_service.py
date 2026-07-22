@@ -83,9 +83,7 @@ class AssignmentService:
         return snapshot
 
     def list(self, tenant_id: str = LOCAL_TENANT) -> list[AssignmentSummary]:
-        return [
-            self._summary(item) for item in self.repository.list_assignments(tenant_id)
-        ]
+        return [self._summary(item) for item in self.repository.list_assignments(tenant_id)]
 
     @staticmethod
     def _variant(role: str, index: int, item: ProgramSourceInput) -> ProgramVariant:

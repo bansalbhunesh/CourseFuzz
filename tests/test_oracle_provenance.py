@@ -85,26 +85,40 @@ def test_abstention_evidence_surfaces_the_reason() -> None:
 
     # Two accepted controls that disagree exactly where the surviving mutant diverges (negatives).
     control_a = ProgramVariant(
-        id="control-a", title="Clamps negatives to zero", misconception="none",
+        id="control-a",
+        title="Clamps negatives to zero",
+        misconception="none",
         source="def f(n):\n    if n < 0:\n        return 0\n    return n\n",
     )
     control_b = ProgramVariant(
-        id="control-b", title="Clamps negatives to one", misconception="none",
+        id="control-b",
+        title="Clamps negatives to one",
+        misconception="none",
         source="def f(n):\n    if n < 0:\n        return 1\n    return n\n",
     )
-    assignment = A.model_copy(update={
-        "id": "poisoned", "entrypoint": "f", "input_names": ("n",),
-        "domain_min": -3, "domain_max": 3,
-        "reference": control_a, "accepted_solutions": (control_a, control_b),
-        "mutants": (ProgramVariant(
-            id="mutant-identity", title="Identity", misconception="assumes identity",
-            source="def f(n):\n    return n\n",
-        ),),
-        "instructor_tests": (
-            CFTestCase(inputs=(2,), expected=2, label="positive", source="instructor"),
-            CFTestCase(inputs=(0,), expected=0, label="zero", source="instructor"),
-        ),
-    })
+    assignment = A.model_copy(
+        update={
+            "id": "poisoned",
+            "entrypoint": "f",
+            "input_names": ("n",),
+            "domain_min": -3,
+            "domain_max": 3,
+            "reference": control_a,
+            "accepted_solutions": (control_a, control_b),
+            "mutants": (
+                ProgramVariant(
+                    id="mutant-identity",
+                    title="Identity",
+                    misconception="assumes identity",
+                    source="def f(n):\n    return n\n",
+                ),
+            ),
+            "instructor_tests": (
+                CFTestCase(inputs=(2,), expected=2, label="positive", source="instructor"),
+                CFTestCase(inputs=(0,), expected=0, label="zero", source="instructor"),
+            ),
+        }
+    )
     engine = AssessmentEngine(LocalRestrictedRunner(), DeterministicHypothesisProvider())
 
     result = engine.analyze(assignment)

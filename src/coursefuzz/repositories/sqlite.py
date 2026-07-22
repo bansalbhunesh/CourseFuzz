@@ -103,8 +103,7 @@ class RunRepository:
                     "ALTER TABLE runs ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'local-demo'"
                 )
             artifact_columns = {
-                row["name"]
-                for row in connection.execute("PRAGMA table_info(artifacts)").fetchall()
+                row["name"] for row in connection.execute("PRAGMA table_info(artifacts)").fetchall()
             }
             if "filename" not in artifact_columns:
                 connection.execute("ALTER TABLE artifacts ADD COLUMN filename TEXT")
@@ -115,8 +114,7 @@ class RunRepository:
                 "WHERE substr(idempotency_key, 1, length(owner_id) + 1) != owner_id || ':'"
             )
             connection.execute(
-                "CREATE INDEX IF NOT EXISTS runs_owner_updated "
-                "ON runs(owner_id, updated_at DESC)"
+                "CREATE INDEX IF NOT EXISTS runs_owner_updated ON runs(owner_id, updated_at DESC)"
             )
             connection.execute(
                 "INSERT OR IGNORE INTO assignment_access(assignment_id, tenant_id, granted_at) "
@@ -268,9 +266,7 @@ class RunRepository:
                 f"IN ({placeholders}) ORDER BY updated_at ASC LIMIT ?",
                 (*statuses, limit),
             ).fetchall()
-        return [
-            (row["owner_id"], RunView.model_validate_json(row["document"])) for row in rows
-        ]
+        return [(row["owner_id"], RunView.model_validate_json(row["document"])) for row in rows]
 
     def save(self, run: RunView) -> None:
         with self._connect() as connection:
@@ -314,8 +310,7 @@ class RunRepository:
             if cursor.rowcount != 1:
                 return False
             consumed = connection.execute(
-                "UPDATE approvals SET consumed_at = ? "
-                "WHERE run_id = ? AND consumed_at IS NULL",
+                "UPDATE approvals SET consumed_at = ? WHERE run_id = ? AND consumed_at IS NULL",
                 (_utc_iso(), run.id),
             )
             return consumed.rowcount == 1

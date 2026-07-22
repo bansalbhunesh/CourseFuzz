@@ -36,9 +36,7 @@ def bind_candidate_payload(candidate: CandidatePatch) -> CandidatePatch:
     )
     serialized = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     digest = hashlib.sha256(serialized).hexdigest()
-    return candidate.model_copy(
-        update={"id": f"patch-{digest[:12]}", "payload_sha256": digest}
-    )
+    return candidate.model_copy(update={"id": f"patch-{digest[:12]}", "payload_sha256": digest})
 
 
 class AssessmentEngine:
@@ -56,9 +54,7 @@ class AssessmentEngine:
 
     def analyze(self, assignment: AssignmentSpec) -> AnalysisResult:
         deadline = time.monotonic() + self.max_analysis_seconds
-        before, survivors = self._measure(
-            assignment, assignment.instructor_tests, deadline
-        )
+        before, survivors = self._measure(assignment, assignment.instructor_tests, deadline)
         if not survivors:
             return AnalysisResult(
                 before=before,
@@ -69,23 +65,25 @@ class AssessmentEngine:
             )
 
         context = HypothesisContext.from_assignment(assignment)
-        survivor_hints = tuple(SurvivorHint(id=item.id, misconception=item.misconception) for item in survivors)
-        
+        survivor_hints = tuple(
+            SurvivorHint(id=item.id, misconception=item.misconception) for item in survivors
+        )
+
         max_attempts = 2
         for attempt in range(max_attempts):
             proposed = self.hypotheses.propose(context, survivor_hints)
-            verdicts, decisions = self._verify_hypotheses(
-                assignment, survivors, proposed, deadline
-            )
+            verdicts, decisions = self._verify_hypotheses(assignment, survivors, proposed, deadline)
             verified = [verdict for verdict in verdicts if verdict.status == "verified"]
             if verified:
                 break
-                
+
             # If we failed and have another attempt, feed the failure reasons back
             if attempt < max_attempts - 1:
-                feedback = [f"Hypothesis {v.hypothesis.inputs} rejected: {v.reason}" for v in verdicts]
+                feedback = [
+                    f"Hypothesis {v.hypothesis.inputs} rejected: {v.reason}" for v in verdicts
+                ]
                 context = context.model_copy(update={"previous_feedback": tuple(feedback)})
-                
+
         if not verified:
             return AnalysisResult(
                 before=before,
@@ -116,11 +114,7 @@ class AssessmentEngine:
             inputs=selected.hypothesis.inputs,
             expected=decision.expected,
             label=f"CourseFuzz regression: {target.misconception}",
-            source=(
-                "gpt-5.6"
-                if selected.hypothesis.provider == "gpt-5.6"
-                else "deterministic"
-            ),
+            source=("gpt-5.6" if selected.hypothesis.provider == "gpt-5.6" else "deterministic"),
         )
         hardened_tests = (*assignment.instructor_tests, verified_test)
         projected_after, _ = self._measure(assignment, hardened_tests, deadline)
@@ -236,9 +230,7 @@ class AssessmentEngine:
             inputs: self.oracle.decide(
                 assignment,
                 inputs,
-                lambda program, _inputs=inputs: control_outputs.get(program.id, {}).get(
-                    _inputs
-                ),
+                lambda program, _inputs=inputs: control_outputs.get(program.id, {}).get(_inputs),
             )
             for inputs in valid_inputs
         }
@@ -277,9 +269,7 @@ class AssessmentEngine:
                     HypothesisVerdict(
                         hypothesis=hypothesis,
                         status="rejected",
-                        reason=(
-                            "Independent accepted solutions disagreed; the oracle abstained."
-                        ),
+                        reason=("Independent accepted solutions disagreed; the oracle abstained."),
                     )
                 )
                 continue

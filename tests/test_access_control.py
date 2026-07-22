@@ -68,9 +68,7 @@ def test_protected_api_requires_a_valid_credential(tmp_path: Path) -> None:
     assert client.get("/api/health").json()["auth"] == "required"
     assert client.get("/api/health").json()["github_auth"] == "unconfigured"
     missing = client.get("/api/assignments")
-    invalid = client.get(
-        "/api/assignments", headers=authorization("not-a-real-coursefuzz-token")
-    )
+    invalid = client.get("/api/assignments", headers=authorization("not-a-real-coursefuzz-token"))
 
     assert missing.status_code == 401
     assert missing.headers["www-authenticate"] == "Bearer"

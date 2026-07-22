@@ -10,9 +10,7 @@ def test_recovery_replays_interrupted_analysis_from_durable_queue(tmp_path: Path
     app = create_app(tmp_path / "coursefuzz.db", tmp_path / "artifacts")
     service = app.state.run_service
     run, _ = service.create_run("triangle-classifier", "recover-analysis")
-    interrupted = run.model_copy(
-        update={"status": RunStatus.ANALYZING, "updated_at": utc_now()}
-    )
+    interrupted = run.model_copy(update={"status": RunStatus.ANALYZING, "updated_at": utc_now()})
     service.repository.save(interrupted)
 
     recovered = service.recover_incomplete_runs()
@@ -21,8 +19,7 @@ def test_recovery_replays_interrupted_analysis_from_durable_queue(tmp_path: Path
     assert recovered == 1
     assert result.status == RunStatus.APPROVAL_REQUIRED
     assert any(
-        event.event_type == "run.recovered"
-        for event in service.repository.events_after(run.id)
+        event.event_type == "run.recovered" for event in service.repository.events_after(run.id)
     )
 
 

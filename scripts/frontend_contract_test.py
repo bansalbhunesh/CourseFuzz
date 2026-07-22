@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+
 from fastapi.testclient import TestClient
+
 from coursefuzz.main import create_app
+
 
 def verify_frontend_api_contracts():
     with tempfile.TemporaryDirectory(prefix="cf-contract-") as tmp_dir:
@@ -49,6 +52,7 @@ def verify_frontend_api_contracts():
         print("[OK] Run creation contract verified, status:", run["status"])
 
         print("\nAll Frontend API Contracts 100% Verified!")
+
 
 if __name__ == "__main__":
     verify_frontend_api_contracts()

@@ -85,11 +85,31 @@ def absolute_value(value):
     return 0 - value
 """,
             mutant_sources=(
-                ("Identity", "forgets negative magnitudes", "def absolute_value(value):\n    return value"),
-                ("Constant two", "overfits the public example", "def absolute_value(value):\n    return 2"),
-                ("Zero negatives", "clips negatives to zero", "def absolute_value(value):\n    if value < 0:\n        return 0\n    return value"),
-                ("Always negates", "negates positive inputs", "def absolute_value(value):\n    return -value"),
-                ("Squares", "confuses magnitude with square", "def absolute_value(value):\n    return value * value"),
+                (
+                    "Identity",
+                    "forgets negative magnitudes",
+                    "def absolute_value(value):\n    return value",
+                ),
+                (
+                    "Constant two",
+                    "overfits the public example",
+                    "def absolute_value(value):\n    return 2",
+                ),
+                (
+                    "Zero negatives",
+                    "clips negatives to zero",
+                    "def absolute_value(value):\n    if value < 0:\n        return 0\n    return value",
+                ),
+                (
+                    "Always negates",
+                    "negates positive inputs",
+                    "def absolute_value(value):\n    return -value",
+                ),
+                (
+                    "Squares",
+                    "confuses magnitude with square",
+                    "def absolute_value(value):\n    return value * value",
+                ),
                 ("Always zero", "drops the input", "def absolute_value(value):\n    return 0"),
             ),
             tests=(_test((2,), 2, "positive example"),),
@@ -114,12 +134,36 @@ def maximum_pair(left, right):
     return left
 """,
             mutant_sources=(
-                ("Returns left", "assumes the first input is larger", "def maximum_pair(left, right):\n    return left"),
-                ("Constant two", "overfits the public example", "def maximum_pair(left, right):\n    return 2"),
-                ("Zero fallback", "uses zero when right is larger", "def maximum_pair(left, right):\n    if left >= right:\n        return left\n    return 0"),
-                ("Returns right", "assumes the second input is larger", "def maximum_pair(left, right):\n    return right"),
-                ("Returns minimum", "reverses the comparison", "def maximum_pair(left, right):\n    if left <= right:\n        return left\n    return right"),
-                ("Adds inputs", "uses addition instead of selection", "def maximum_pair(left, right):\n    return left + right"),
+                (
+                    "Returns left",
+                    "assumes the first input is larger",
+                    "def maximum_pair(left, right):\n    return left",
+                ),
+                (
+                    "Constant two",
+                    "overfits the public example",
+                    "def maximum_pair(left, right):\n    return 2",
+                ),
+                (
+                    "Zero fallback",
+                    "uses zero when right is larger",
+                    "def maximum_pair(left, right):\n    if left >= right:\n        return left\n    return 0",
+                ),
+                (
+                    "Returns right",
+                    "assumes the second input is larger",
+                    "def maximum_pair(left, right):\n    return right",
+                ),
+                (
+                    "Returns minimum",
+                    "reverses the comparison",
+                    "def maximum_pair(left, right):\n    if left <= right:\n        return left\n    return right",
+                ),
+                (
+                    "Adds inputs",
+                    "uses addition instead of selection",
+                    "def maximum_pair(left, right):\n    return left + right",
+                ),
             ),
             tests=(_test((2, 1), 2, "left is larger"),),
         ),
@@ -143,12 +187,36 @@ def minimum_pair(left, right):
     return left
 """,
             mutant_sources=(
-                ("Returns left", "assumes the first input is smaller", "def minimum_pair(left, right):\n    return left"),
-                ("Constant minus two", "overfits the public example", "def minimum_pair(left, right):\n    return -2"),
-                ("Zero fallback", "uses zero when right is smaller", "def minimum_pair(left, right):\n    if left <= right:\n        return left\n    return 0"),
-                ("Returns right", "assumes the second input is smaller", "def minimum_pair(left, right):\n    return right"),
-                ("Returns maximum", "reverses the comparison", "def minimum_pair(left, right):\n    if left >= right:\n        return left\n    return right"),
-                ("Subtracts inputs", "uses arithmetic instead of selection", "def minimum_pair(left, right):\n    return left - right"),
+                (
+                    "Returns left",
+                    "assumes the first input is smaller",
+                    "def minimum_pair(left, right):\n    return left",
+                ),
+                (
+                    "Constant minus two",
+                    "overfits the public example",
+                    "def minimum_pair(left, right):\n    return -2",
+                ),
+                (
+                    "Zero fallback",
+                    "uses zero when right is smaller",
+                    "def minimum_pair(left, right):\n    if left <= right:\n        return left\n    return 0",
+                ),
+                (
+                    "Returns right",
+                    "assumes the second input is smaller",
+                    "def minimum_pair(left, right):\n    return right",
+                ),
+                (
+                    "Returns maximum",
+                    "reverses the comparison",
+                    "def minimum_pair(left, right):\n    if left >= right:\n        return left\n    return right",
+                ),
+                (
+                    "Subtracts inputs",
+                    "uses arithmetic instead of selection",
+                    "def minimum_pair(left, right):\n    return left - right",
+                ),
             ),
             tests=(_test((-2, 1), -2, "left is smaller"),),
         ),
@@ -176,12 +244,24 @@ def clamp_unit(value):
     return 1
 """,
             mutant_sources=(
-                ("Upper clamp only", "omits the lower bound", "def clamp_unit(value):\n    if value > 1:\n        return 1\n    return value"),
-                ("Negative to zero", "clips low values to zero", "def clamp_unit(value):\n    if value < -1:\n        return 0\n    if value > 1:\n        return 1\n    return value"),
+                (
+                    "Upper clamp only",
+                    "omits the lower bound",
+                    "def clamp_unit(value):\n    if value > 1:\n        return 1\n    return value",
+                ),
+                (
+                    "Negative to zero",
+                    "clips low values to zero",
+                    "def clamp_unit(value):\n    if value < -1:\n        return 0\n    if value > 1:\n        return 1\n    return value",
+                ),
                 ("Identity", "omits both bounds", "def clamp_unit(value):\n    return value"),
                 ("Always one", "returns the upper bound", "def clamp_unit(value):\n    return 1"),
                 ("Always zero", "returns the midpoint", "def clamp_unit(value):\n    return 0"),
-                ("Lower clamp only", "omits the upper bound", "def clamp_unit(value):\n    if value < -1:\n        return -1\n    return value"),
+                (
+                    "Lower clamp only",
+                    "omits the upper bound",
+                    "def clamp_unit(value):\n    if value < -1:\n        return -1\n    return value",
+                ),
             ),
             tests=(_test((0,), 0, "inside interval"), _test((2,), 1, "above interval")),
         ),
@@ -205,12 +285,36 @@ def parity_label(value):
     return "even"
 """,
             mutant_sources=(
-                ("Always even", "overgeneralizes the example", "def parity_label(value):\n    return \"even\""),
-                ("Only two is even", "memorizes one input", "def parity_label(value):\n    if value == 2:\n        return \"even\"\n    return \"odd\""),
-                ("Zero is odd", "special-cases zero incorrectly", "def parity_label(value):\n    if value == 0:\n        return \"odd\"\n    if value % 2 == 0:\n        return \"even\"\n    return \"odd\""),
-                ("Always odd", "reverses the public class", "def parity_label(value):\n    return \"odd\""),
-                ("Positive means even", "uses sign instead of parity", "def parity_label(value):\n    if value > 0:\n        return \"even\"\n    return \"odd\""),
-                ("Modulo reversed", "reverses modulo branches", "def parity_label(value):\n    if value % 2 == 0:\n        return \"odd\"\n    return \"even\""),
+                (
+                    "Always even",
+                    "overgeneralizes the example",
+                    'def parity_label(value):\n    return "even"',
+                ),
+                (
+                    "Only two is even",
+                    "memorizes one input",
+                    'def parity_label(value):\n    if value == 2:\n        return "even"\n    return "odd"',
+                ),
+                (
+                    "Zero is odd",
+                    "special-cases zero incorrectly",
+                    'def parity_label(value):\n    if value == 0:\n        return "odd"\n    if value % 2 == 0:\n        return "even"\n    return "odd"',
+                ),
+                (
+                    "Always odd",
+                    "reverses the public class",
+                    'def parity_label(value):\n    return "odd"',
+                ),
+                (
+                    "Positive means even",
+                    "uses sign instead of parity",
+                    'def parity_label(value):\n    if value > 0:\n        return "even"\n    return "odd"',
+                ),
+                (
+                    "Modulo reversed",
+                    "reverses modulo branches",
+                    'def parity_label(value):\n    if value % 2 == 0:\n        return "odd"\n    return "even"',
+                ),
             ),
             tests=(_test((2,), "even", "positive even"),),
         ),
@@ -234,12 +338,36 @@ def multiple_of_three(value):
     return True
 """,
             mutant_sources=(
-                ("Always true", "overgeneralizes the positive example", "def multiple_of_three(value):\n    return True"),
-                ("Only three", "memorizes one divisible input", "def multiple_of_three(value):\n    if value == 3:\n        return True\n    return False"),
-                ("Zero false", "forgets zero is divisible", "def multiple_of_three(value):\n    if value == 0:\n        return False\n    if value % 3 == 0:\n        return True\n    return False"),
-                ("Always false", "drops the positive class", "def multiple_of_three(value):\n    return False"),
-                ("Evenness", "checks parity instead", "def multiple_of_three(value):\n    if value % 2 == 0:\n        return True\n    return False"),
-                ("Remainder one", "checks the wrong remainder", "def multiple_of_three(value):\n    if value % 3 == 1:\n        return True\n    return False"),
+                (
+                    "Always true",
+                    "overgeneralizes the positive example",
+                    "def multiple_of_three(value):\n    return True",
+                ),
+                (
+                    "Only three",
+                    "memorizes one divisible input",
+                    "def multiple_of_three(value):\n    if value == 3:\n        return True\n    return False",
+                ),
+                (
+                    "Zero false",
+                    "forgets zero is divisible",
+                    "def multiple_of_three(value):\n    if value == 0:\n        return False\n    if value % 3 == 0:\n        return True\n    return False",
+                ),
+                (
+                    "Always false",
+                    "drops the positive class",
+                    "def multiple_of_three(value):\n    return False",
+                ),
+                (
+                    "Evenness",
+                    "checks parity instead",
+                    "def multiple_of_three(value):\n    if value % 2 == 0:\n        return True\n    return False",
+                ),
+                (
+                    "Remainder one",
+                    "checks the wrong remainder",
+                    "def multiple_of_three(value):\n    if value % 3 == 1:\n        return True\n    return False",
+                ),
             ),
             tests=(_test((3,), True, "three is divisible"),),
         ),
@@ -267,12 +395,36 @@ def sign_category(value):
     return "negative"
 """,
             mutant_sources=(
-                ("Always positive", "overgeneralizes the public example", "def sign_category(value):\n    return \"positive\""),
-                ("Zero positive", "uses a non-strict positive branch", "def sign_category(value):\n    if value >= 0:\n        return \"positive\"\n    return \"negative\""),
-                ("Negative zero", "merges zero into negative", "def sign_category(value):\n    if value > 0:\n        return \"positive\"\n    return \"negative\""),
-                ("Always zero", "drops sign information", "def sign_category(value):\n    return \"zero\""),
-                ("Reversed signs", "swaps negative and positive", "def sign_category(value):\n    if value < 0:\n        return \"positive\"\n    return \"negative\""),
-                ("Numeric labels", "returns an unrelated encoding", "def sign_category(value):\n    if value > 0:\n        return 1\n    return 0"),
+                (
+                    "Always positive",
+                    "overgeneralizes the public example",
+                    'def sign_category(value):\n    return "positive"',
+                ),
+                (
+                    "Zero positive",
+                    "uses a non-strict positive branch",
+                    'def sign_category(value):\n    if value >= 0:\n        return "positive"\n    return "negative"',
+                ),
+                (
+                    "Negative zero",
+                    "merges zero into negative",
+                    'def sign_category(value):\n    if value > 0:\n        return "positive"\n    return "negative"',
+                ),
+                (
+                    "Always zero",
+                    "drops sign information",
+                    'def sign_category(value):\n    return "zero"',
+                ),
+                (
+                    "Reversed signs",
+                    "swaps negative and positive",
+                    'def sign_category(value):\n    if value < 0:\n        return "positive"\n    return "negative"',
+                ),
+                (
+                    "Numeric labels",
+                    "returns an unrelated encoding",
+                    "def sign_category(value):\n    if value > 0:\n        return 1\n    return 0",
+                ),
             ),
             tests=(_test((2,), "positive", "positive input"),),
         ),
@@ -296,12 +448,36 @@ def inclusive_order(left, right):
     return True
 """,
             mutant_sources=(
-                ("Always true", "overgeneralizes ordered examples", "def inclusive_order(left, right):\n    return True"),
-                ("Strict order", "rejects equality", "def inclusive_order(left, right):\n    if left < right:\n        return True\n    return False"),
-                ("Equality only", "checks equality instead of order", "def inclusive_order(left, right):\n    if left == right:\n        return True\n    return False"),
-                ("Always false", "drops the positive class", "def inclusive_order(left, right):\n    return False"),
-                ("Reversed order", "swaps operands", "def inclusive_order(left, right):\n    if right <= left:\n        return True\n    return False"),
-                ("Non-equality", "checks only difference", "def inclusive_order(left, right):\n    if left != right:\n        return True\n    return False"),
+                (
+                    "Always true",
+                    "overgeneralizes ordered examples",
+                    "def inclusive_order(left, right):\n    return True",
+                ),
+                (
+                    "Strict order",
+                    "rejects equality",
+                    "def inclusive_order(left, right):\n    if left < right:\n        return True\n    return False",
+                ),
+                (
+                    "Equality only",
+                    "checks equality instead of order",
+                    "def inclusive_order(left, right):\n    if left == right:\n        return True\n    return False",
+                ),
+                (
+                    "Always false",
+                    "drops the positive class",
+                    "def inclusive_order(left, right):\n    return False",
+                ),
+                (
+                    "Reversed order",
+                    "swaps operands",
+                    "def inclusive_order(left, right):\n    if right <= left:\n        return True\n    return False",
+                ),
+                (
+                    "Non-equality",
+                    "checks only difference",
+                    "def inclusive_order(left, right):\n    if left != right:\n        return True\n    return False",
+                ),
             ),
             tests=(_test((1, 2), True, "increasing pair"), _test((2, 2), True, "equal pair")),
         ),
@@ -335,12 +511,36 @@ def median_three(a, b, c):
     return b
 """,
             mutant_sources=(
-                ("Returns middle position", "confuses position with rank", "def median_three(a, b, c):\n    return b"),
-                ("Constant two", "overfits sorted examples", "def median_three(a, b, c):\n    return 2"),
-                ("Returns first", "assumes the first input is median", "def median_three(a, b, c):\n    return a"),
-                ("Returns last", "assumes the last input is median", "def median_three(a, b, c):\n    return c"),
-                ("Returns maximum", "selects the largest", "def median_three(a, b, c):\n    if a >= b and a >= c:\n        return a\n    if b >= c:\n        return b\n    return c"),
-                ("Returns minimum", "selects the smallest", "def median_three(a, b, c):\n    if a <= b and a <= c:\n        return a\n    if b <= c:\n        return b\n    return c"),
+                (
+                    "Returns middle position",
+                    "confuses position with rank",
+                    "def median_three(a, b, c):\n    return b",
+                ),
+                (
+                    "Constant two",
+                    "overfits sorted examples",
+                    "def median_three(a, b, c):\n    return 2",
+                ),
+                (
+                    "Returns first",
+                    "assumes the first input is median",
+                    "def median_three(a, b, c):\n    return a",
+                ),
+                (
+                    "Returns last",
+                    "assumes the last input is median",
+                    "def median_three(a, b, c):\n    return c",
+                ),
+                (
+                    "Returns maximum",
+                    "selects the largest",
+                    "def median_three(a, b, c):\n    if a >= b and a >= c:\n        return a\n    if b >= c:\n        return b\n    return c",
+                ),
+                (
+                    "Returns minimum",
+                    "selects the smallest",
+                    "def median_three(a, b, c):\n    if a <= b and a <= c:\n        return a\n    if b <= c:\n        return b\n    return c",
+                ),
             ),
             tests=(_test((1, 2, 3), 2, "ascending"), _test((3, 2, 1), 2, "descending")),
         ),
@@ -364,12 +564,32 @@ def score_band(score):
     return "low"
 """,
             mutant_sources=(
-                ("Strict low", "excludes the inclusive boundary", "def score_band(score):\n    if score < 1:\n        return \"low\"\n    return \"high\""),
-                ("Always low", "overgeneralizes the public example", "def score_band(score):\n    return \"low\""),
-                ("Zero only", "memorizes one low input", "def score_band(score):\n    if score == 0:\n        return \"low\"\n    return \"high\""),
-                ("Always high", "drops the low class", "def score_band(score):\n    return \"high\""),
-                ("Parity band", "uses parity instead of threshold", "def score_band(score):\n    if score % 2 == 0:\n        return \"low\"\n    return \"high\""),
-                ("Upper boundary low", "labels the maximum as low", "def score_band(score):\n    if score == 3:\n        return \"low\"\n    return \"high\""),
+                (
+                    "Strict low",
+                    "excludes the inclusive boundary",
+                    'def score_band(score):\n    if score < 1:\n        return "low"\n    return "high"',
+                ),
+                (
+                    "Always low",
+                    "overgeneralizes the public example",
+                    'def score_band(score):\n    return "low"',
+                ),
+                (
+                    "Zero only",
+                    "memorizes one low input",
+                    'def score_band(score):\n    if score == 0:\n        return "low"\n    return "high"',
+                ),
+                ("Always high", "drops the low class", 'def score_band(score):\n    return "high"'),
+                (
+                    "Parity band",
+                    "uses parity instead of threshold",
+                    'def score_band(score):\n    if score % 2 == 0:\n        return "low"\n    return "high"',
+                ),
+                (
+                    "Upper boundary low",
+                    "labels the maximum as low",
+                    'def score_band(score):\n    if score == 3:\n        return "low"\n    return "high"',
+                ),
             ),
             tests=(_test((0,), "low", "zero score"),),
         ),

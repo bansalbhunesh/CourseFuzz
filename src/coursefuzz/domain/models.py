@@ -138,11 +138,6 @@ class AssignmentCreate(BaseModel):
     title: str = Field(min_length=3, max_length=120)
     summary: str = Field(min_length=10, max_length=2_000)
     entrypoint: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-
-class AssignmentGenerateRequest(BaseModel):
-    model_config = ConfigDict(str_strip_whitespace=True)
-    prompt: str = Field(min_length=3, max_length=1_000)
     input_names: tuple[str, ...] = Field(min_length=1, max_length=6)
     domain_min: int = Field(ge=-1_000, le=1_000)
     domain_max: int = Field(ge=-1_000, le=1_000)
@@ -169,6 +164,11 @@ class AssignmentGenerateRequest(BaseModel):
         ):
             raise ValueError("instructor test inputs must stay inside the declared domain")
         return self
+
+
+class AssignmentGenerateRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    prompt: str = Field(min_length=3, max_length=1_000)
 
 
 class GitHubImportProvenance(BaseModel):

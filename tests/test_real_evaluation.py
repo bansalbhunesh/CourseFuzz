@@ -280,8 +280,10 @@ def test_tampered_candidate_file_is_rejected_before_hidden_rows_open(tmp_path: P
 def test_committed_real_manifest_meets_the_frozen_size_gate() -> None:
     manifest = load_manifest(ROOT / "evaluations" / "real" / "selection_manifest.json")
     exclusions = (
-        ROOT / "evaluations" / "real" / "exclusions.jsonl"
-    ).read_text(encoding="utf-8").splitlines()
+        (ROOT / "evaluations" / "real" / "exclusions.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
 
     assert len(manifest.tasks) == 20
     assert sum(len(task.wrong_programs) for task in manifest.tasks) == 500

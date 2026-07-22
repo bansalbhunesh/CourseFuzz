@@ -209,7 +209,7 @@ def build_router(
         title = "Generated Assignment"
         entrypoint = "solution_fn"
         summary = f"Auto-generated assignment from prompt: {payload.prompt}"
-        
+
         if "factorial" in prompt:
             title = "Factorial Function"
             entrypoint = "factorial"
@@ -238,7 +238,11 @@ def build_router(
             domain_max=10,
             reference=ProgramSourceInput(title="Reference Solution", source=ref_source),
             accepted_solutions=[ProgramSourceInput(title="Control Solution", source=ctrl_source)],
-            misconception_programs=[ProgramSourceInput(title="Buggy Misconception", source=mut_source, misconception="Flawed logic")],
+            misconception_programs=[
+                ProgramSourceInput(
+                    title="Buggy Misconception", source=mut_source, misconception="Flawed logic"
+                )
+            ],
             instructor_tests=[InstructorTestInput(inputs=(2,), expected=2, label="small_pos")],
         )
 
@@ -500,14 +504,14 @@ def build_router(
         """Import an assignment from a GitHub repository."""
         if installation_store is None:
             raise HTTPException(status_code=503, detail="GitHub App is not configured")
-        
+
         # Build credential provider to pass to Importer
         from coursefuzz.security.github_app import build_credential_provider
-        from coursefuzz.services.github_importer import GitHubImporterService, GitHubImportError
-        
+        from coursefuzz.services.github_importer import GitHubImportError, GitHubImporterService
+
         provider = build_credential_provider(installation_store)
         importer = GitHubImporterService(provider, assignments)
-        
+
         try:
             assignment_id = importer.import_repository(
                 repository=payload.repository,
@@ -518,9 +522,9 @@ def build_router(
             )
             return {"id": assignment_id}
         except GitHubImportError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @router.get("/github/login")
     def github_login(

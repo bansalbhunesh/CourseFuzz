@@ -172,9 +172,7 @@ class LocalRestrictedRunner(ExecutionGateway):
         if not result.get("ok"):
             rejected = result.get("kind") == "rejected"
             return _RawRun(
-                outcome=(
-                    ExecutionOutcome.REJECTED if rejected else ExecutionOutcome.RUNTIME_ERROR
-                ),
+                outcome=(ExecutionOutcome.REJECTED if rejected else ExecutionOutcome.RUNTIME_ERROR),
                 passed=0,
                 failed=num_tests,
                 error=result.get("error"),

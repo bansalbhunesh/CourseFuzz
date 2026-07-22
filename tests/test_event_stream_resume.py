@@ -39,9 +39,7 @@ def test_event_stream_resumes_from_last_event_id_without_replay(tmp_path: Path) 
 
     # Resuming after the second event replays only the later ones, never the already-seen prefix.
     cursor = ids[1]
-    resumed = client.get(
-        f"/api/runs/{run_id}/events", headers={"Last-Event-ID": str(cursor)}
-    )
+    resumed = client.get(f"/api/runs/{run_id}/events", headers={"Last-Event-ID": str(cursor)})
     assert resumed.status_code == 200
     resumed_ids = _event_ids(resumed.text)
     assert resumed_ids == [event_id for event_id in ids if event_id > cursor]

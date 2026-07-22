@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 import sys
@@ -76,10 +77,8 @@ def run_in_isolated_sandbox(
         stderr = f"Execution timed out after {timeout_seconds} seconds."
     finally:
         if os.path.exists(tmp_path):
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(tmp_path)
-            except OSError:
-                pass
 
     return SandboxExecutionResult(
         returncode=returncode,

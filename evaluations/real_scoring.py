@@ -276,9 +276,7 @@ def score_candidates(
 ) -> dict[str, Any]:
     """Score a sealed file. Receipt verification happens before hidden rows are touched."""
 
-    receipt = verify_candidate_receipt(
-        manifest, public_bundle_path, candidates_path, receipt_path
-    )
+    receipt = verify_candidate_receipt(manifest, public_bundle_path, candidates_path, receipt_path)
     candidates = _read_candidates(candidates_path)
     by_generator: dict[str, list[Candidate]] = defaultdict(list)
     for candidate in candidates:

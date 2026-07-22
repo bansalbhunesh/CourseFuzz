@@ -48,8 +48,7 @@ def test_run_fails_closed_when_its_bound_snapshot_hash_drifts(tmp_path: Path) ->
     # It failed at the guard, before producing any analysis of the changed content.
     assert result.analysis is None
     assert any(
-        event.event_type == "run.failed"
-        for event in service.repository.events_after(run.id)
+        event.event_type == "run.failed" for event in service.repository.events_after(run.id)
     )
 
 

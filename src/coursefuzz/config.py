@@ -14,7 +14,5 @@ def analysis_deadline_seconds() -> float:
             "COURSEFUZZ_ANALYSIS_DEADLINE_SECONDS must be a number between 30 and 120"
         ) from exc
     if not 30 <= value <= 120:
-        raise RuntimeError(
-            "COURSEFUZZ_ANALYSIS_DEADLINE_SECONDS must be between 30 and 120"
-        )
+        raise RuntimeError("COURSEFUZZ_ANALYSIS_DEADLINE_SECONDS must be between 30 and 120")
     return value

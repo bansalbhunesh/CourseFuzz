@@ -29,36 +29,28 @@ def test_engine_finds_minimal_verified_counterexample(
         "mutant-no-bc-pair",
         "mutant-guarded-bc",
     }
-    assert result.candidate.pytest_source.startswith(
-        "from solution import classify_triangle\n"
-    )
+    assert result.candidate.pytest_source.startswith("from solution import classify_triangle\n")
     accepted_module = types.ModuleType("solution")
     exec(TRIANGLE_ASSIGNMENT.reference.source, accepted_module.__dict__)
     monkeypatch.setitem(sys.modules, "solution", accepted_module)
     accepted_patch: dict[str, object] = {}
     exec(result.candidate.pytest_source, accepted_patch)
     generated_test = next(
-        value
-        for name, value in accepted_patch.items()
-        if name.startswith("test_coursefuzz_")
+        value for name, value in accepted_patch.items() if name.startswith("test_coursefuzz_")
     )
     assert callable(generated_test)
     generated_test()
 
     wrong_module = types.ModuleType("solution")
     wrong_source = next(
-        mutant.source
-        for mutant in TRIANGLE_ASSIGNMENT.mutants
-        if mutant.id == "mutant-ab-only"
+        mutant.source for mutant in TRIANGLE_ASSIGNMENT.mutants if mutant.id == "mutant-ab-only"
     )
     exec(wrong_source, wrong_module.__dict__)
     monkeypatch.setitem(sys.modules, "solution", wrong_module)
     wrong_patch: dict[str, object] = {}
     exec(result.candidate.pytest_source, wrong_patch)
     wrong_test = next(
-        value
-        for name, value in wrong_patch.items()
-        if name.startswith("test_coursefuzz_")
+        value for name, value in wrong_patch.items() if name.startswith("test_coursefuzz_")
     )
     assert callable(wrong_test)
     with pytest.raises(AssertionError):
@@ -185,23 +177,13 @@ def test_engine_is_not_tied_to_the_seeded_triangle_assignment() -> None:
         id="reference-absolute",
         title="Reference absolute value",
         misconception="none",
-        source=(
-            "def absolute_value(n):\n"
-            "    if n < 0:\n"
-            "        return -n\n"
-            "    return n\n"
-        ),
+        source=("def absolute_value(n):\n    if n < 0:\n        return -n\n    return n\n"),
     )
     alternative = ProgramVariant(
         id="accepted-absolute",
         title="Accepted absolute value",
         misconception="none",
-        source=(
-            "def absolute_value(n):\n"
-            "    if n >= 0:\n"
-            "        return n\n"
-            "    return 0 - n\n"
-        ),
+        source=("def absolute_value(n):\n    if n >= 0:\n        return n\n    return 0 - n\n"),
     )
     assignment = AssignmentSpec(
         id="absolute-value",
@@ -228,9 +210,7 @@ def test_engine_is_not_tied_to_the_seeded_triangle_assignment() -> None:
             ),
         ),
         instructor_tests=(
-            DomainTestCase(
-                inputs=(-2,), expected=2, label="negative", source="instructor"
-            ),
+            DomainTestCase(inputs=(-2,), expected=2, label="negative", source="instructor"),
             DomainTestCase(inputs=(0,), expected=0, label="zero", source="instructor"),
         ),
     )

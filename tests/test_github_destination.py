@@ -107,9 +107,11 @@ def test_github_destination_fails_closed_outside_repository_allowlist() -> None:
             )
         }
     )
-    candidate = AssessmentEngine(
-        SubprocessPythonSandbox(), DeterministicHypothesisProvider()
-    ).analyze(assignment).candidate
+    candidate = (
+        AssessmentEngine(SubprocessPythonSandbox(), DeterministicHypothesisProvider())
+        .analyze(assignment)
+        .candidate
+    )
     assert candidate is not None
     client = httpx.Client(
         base_url="https://api.github.test",
@@ -144,9 +146,11 @@ def test_github_destination_fails_closed_when_read_back_bytes_are_tampered() -> 
             )
         }
     )
-    unbound = AssessmentEngine(
-        SubprocessPythonSandbox(), DeterministicHypothesisProvider()
-    ).analyze(assignment).candidate
+    unbound = (
+        AssessmentEngine(SubprocessPythonSandbox(), DeterministicHypothesisProvider())
+        .analyze(assignment)
+        .candidate
+    )
     assert unbound is not None
     content_reads = 0
 
@@ -203,9 +207,11 @@ def test_github_destination_is_idempotent_when_branch_and_pr_already_exist() -> 
             )
         }
     )
-    unbound = AssessmentEngine(
-        SubprocessPythonSandbox(), DeterministicHypothesisProvider()
-    ).analyze(assignment).candidate
+    unbound = (
+        AssessmentEngine(SubprocessPythonSandbox(), DeterministicHypothesisProvider())
+        .analyze(assignment)
+        .candidate
+    )
     assert unbound is not None
     correct_content = base64.b64encode(unbound.pytest_source.encode()).decode()
 

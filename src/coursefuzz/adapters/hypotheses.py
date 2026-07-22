@@ -201,9 +201,9 @@ class OpenAIHypothesisProvider(HypothesisProvider):
                 {
                     "role": "system",
                     "content": "Generate bounded test-input hypotheses for an introductory programming "
-                               "assignment. Inputs are hypotheses only: never claim correctness or invent "
-                               "expected outputs. The execution oracle will reject most candidates. Stay "
-                               "inside the declared integer domain and return at most eight diverse cases."
+                    "assignment. Inputs are hypotheses only: never claim correctness or invent "
+                    "expected outputs. The execution oracle will reject most candidates. Stay "
+                    "inside the declared integer domain and return at most eight diverse cases.",
                 },
                 {
                     "role": "user",
@@ -216,8 +216,8 @@ class OpenAIHypothesisProvider(HypothesisProvider):
                             "previous_feedback": context.previous_feedback,
                         },
                         sort_keys=True,
-                    )
-                }
+                    ),
+                },
             ],
             max_tokens=1400,
         )
@@ -297,9 +297,7 @@ class ResilientHypothesisProvider(HypothesisProvider):
             if item.inputs in seen:
                 continue
             seen.add(item.inputs)
-            combined.append(
-                item.model_copy(update={"id": f"hypothesis-{len(combined) + 1}"})
-            )
+            combined.append(item.model_copy(update={"id": f"hypothesis-{len(combined) + 1}"}))
             if len(combined) == 8:
                 break
         return tuple(combined)
