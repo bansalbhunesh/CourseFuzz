@@ -509,6 +509,16 @@ export function App() {
   }
 
   const oracle = oracleEvidenceOf(run?.analysis);
+  const actualHypothesisProviders = new Set(
+    run?.analysis?.hypothesis_verdicts.map((verdict) => verdict.hypothesis.provider) ?? [],
+  );
+  const hypothesisModeLabel = actualHypothesisProviders.has("gpt-5.6")
+    ? "GPT-5.6 hypotheses"
+    : actualHypothesisProviders.has("deterministic-fallback")
+      ? "Verified fallback hypotheses"
+      : demo?.mode === "live-gpt-5.6"
+        ? "GPT-5.6 hypotheses"
+        : "Deterministic fallback";
 
   return (
     <main className="app-shell">
@@ -534,7 +544,7 @@ export function App() {
           {health?.auth === "required" && <button className="text-action" type="button" onClick={() => void signOut()}>Sign out</button>}
           <div className="run-meta">
             <span className="mode-dot" aria-hidden="true" />
-            <span>{demo?.mode === "live-gpt-5.6" ? "GPT-5.6 hypotheses" : "Deterministic fallback"}</span>
+            <span>{hypothesisModeLabel}</span>
           </div>
         </div>
       </header>
@@ -614,7 +624,11 @@ export function App() {
 
           {run?.status === "failed" && (
             <div className="failed-state">
-              <span>!</span><div><h3>Analysis abstained.</h3><p>{run.error ?? "The run did not produce a safe candidate."}</p></div>
+              <span>!</span><div><h3>Analysis abstained.</h3><p>{run.error ?? "The run did not produce a safe candidate."}</p>
+                <button className="primary-action" type="button" disabled={busy} onClick={() => void startRun()}>
+                  {busy ? "Retrying…" : "Retry analysis"}<span aria-hidden="true">→</span>
+                </button>
+              </div>
             </div>
           )}
 
