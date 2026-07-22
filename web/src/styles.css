@@ -289,3 +289,14 @@
 
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 }
+
+@layer components {
+  .github-panel { padding: clamp(20px, 3vw, 32px) clamp(24px, 4vw, 56px); border-bottom: 3px solid var(--ink); display: grid; gap: 16px; }
+  .github-repo-list { list-style: none; display: flex; flex-wrap: wrap; gap: 10px; padding: 0; margin: 0; }
+  .github-repo-list li { border: 1px solid var(--ink); padding: 6px 12px; background: var(--paper); }
+  .github-repo-list code { font-size: 0.95rem; }
+  .github-muted { color: var(--ink-soft); max-width: 62ch; margin: 0; }
+  .github-status { padding: 10px 14px; border: 1px solid var(--ink); font-weight: 600; margin: 0; }
+  .github-status-ok { border-left: 6px solid var(--green); }
+  .github-status-error { border-left: 6px solid var(--vermilion); }
+}
