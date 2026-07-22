@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import queue
+import threading
 from abc import ABC, abstractmethod
 from itertools import permutations, product
 
@@ -158,7 +160,10 @@ class OpenAIHypothesisProvider(HypothesisProvider):
     ) -> tuple[AttackHypothesis, ...]:
         response = self.client.responses.parse(
             model=self.model,
-            reasoning={"effort": "medium"},
+            # This is a small, schema-constrained candidate-generation step. Official GPT-5.6
+            # guidance recommends low effort for latency-sensitive work; execution—not model
+            # reasoning—establishes truth below this boundary.
+            reasoning={"effort": "low"},
             text_format=HypothesisBatch,
             max_output_tokens=1400,
             store=False,
@@ -197,19 +202,55 @@ class OpenAIHypothesisProvider(HypothesisProvider):
 class ResilientHypothesisProvider(HypothesisProvider):
     mode = "live-gpt-5.6"
 
-    def __init__(self, primary: HypothesisProvider, fallback: HypothesisProvider) -> None:
+    def __init__(
+        self,
+        primary: HypothesisProvider,
+        fallback: HypothesisProvider,
+        *,
+        primary_wall_seconds: float = 12.0,
+        max_concurrent_primary_calls: int = 4,
+    ) -> None:
+        if primary_wall_seconds <= 0:
+            raise ValueError("primary_wall_seconds must be positive")
+        if max_concurrent_primary_calls <= 0:
+            raise ValueError("max_concurrent_primary_calls must be positive")
         self.primary = primary
         self.fallback = fallback
+        self.primary_wall_seconds = primary_wall_seconds
+        # A timed-out network call may need a short period to unwind. Bound those daemon calls so
+        # repeated timeouts cannot create an unbounded thread pile-up under load.
+        self._primary_slots = threading.BoundedSemaphore(max_concurrent_primary_calls)
 
     def propose(
         self,
         context: HypothesisContext,
         survivors: tuple[SurvivorHint, ...],
     ) -> tuple[AttackHypothesis, ...]:
-        try:
-            return self.primary.propose(context, survivors)
-        except Exception:
+        if not self._primary_slots.acquire(blocking=False):
             return self.fallback.propose(context, survivors)
+
+        result: queue.Queue[tuple[AttackHypothesis, ...] | Exception] = queue.Queue(maxsize=1)
+
+        def call_primary() -> None:
+            try:
+                result.put(self.primary.propose(context, survivors))
+            except Exception as exc:
+                result.put(exc)
+            finally:
+                self._primary_slots.release()
+
+        threading.Thread(
+            target=call_primary,
+            name="coursefuzz-hypothesis-provider",
+            daemon=True,
+        ).start()
+        try:
+            outcome = result.get(timeout=self.primary_wall_seconds)
+        except queue.Empty:
+            return self.fallback.propose(context, survivors)
+        if isinstance(outcome, Exception):
+            return self.fallback.propose(context, survivors)
+        return outcome
 
 
 def build_hypothesis_provider() -> HypothesisProvider:
