@@ -1,0 +1,73 @@
+{
+  "title": "Triangle classifier — GitHub proof",
+  "summary": "Classify three integer side lengths as invalid, equilateral, isosceles, or scalene. The instructor suite looks complete but misses a positional misconception.",
+  "entrypoint": "classify_triangle",
+  "input_names": ["a", "b", "c"],
+  "domain_min": 0,
+  "domain_max": 8,
+  "reference": {
+    "title": "Instructor reference",
+    "source": "def classify_triangle(a, b, c):\n    if a <= 0 or b <= 0 or c <= 0:\n        return \"invalid\"\n    if a + b <= c or a + c <= b or b + c <= a:\n        return \"invalid\"\n    if a == b and b == c:\n        return \"equilateral\"\n    if a == b or b == c or a == c:\n        return \"isosceles\"\n    return \"scalene\"\n"
+  },
+  "accepted_solutions": [
+    {
+      "title": "Accepted independent solution",
+      "source": "def classify_triangle(a, b, c):\n    if a <= 0 or b <= 0 or c <= 0:\n        return \"invalid\"\n    if a + b <= c or a + c <= b or b + c <= a:\n        return \"invalid\"\n    if a == b:\n        if b == c:\n            return \"equilateral\"\n        return \"isosceles\"\n    if b == c or a == c:\n        return \"isosceles\"\n    return \"scalene\"\n"
+    }
+  ],
+  "misconception_programs": [
+    {
+      "title": "Only checks the first equal pair",
+      "misconception": "Isosceles means a == b, ignoring side permutations.",
+      "source": "def classify_triangle(a, b, c):\n    if a <= 0 or b <= 0 or c <= 0:\n        return \"invalid\"\n    if a + b <= c or a + c <= b or b + c <= a:\n        return \"invalid\"\n    if a == b and b == c:\n        return \"equilateral\"\n    if a == b:\n        return \"isosceles\"\n    return \"scalene\"\n"
+    },
+    {
+      "title": "Accepts degenerate triangles",
+      "misconception": "Uses strict inequality and accepts a + b == c.",
+      "source": "def classify_triangle(a, b, c):\n    if a <= 0 or b <= 0 or c <= 0:\n        return \"invalid\"\n    if a + b < c or a + c < b or b + c < a:\n        return \"invalid\"\n    if a == b and b == c:\n        return \"equilateral\"\n    if a == b or b == c or a == c:\n        return \"isosceles\"\n    return \"scalene\"\n"
+    },
+    {
+      "title": "Labels equilateral as isosceles",
+      "misconception": "Checks any equality before all-three equality.",
+      "source": "def classify_triangle(a, b, c):\n    if a <= 0 or b <= 0 or c <= 0:\n        return \"invalid\"\n    if a + b <= c or a + c <= b or b + c <= a:\n        return \"invalid\"\n    if a == b or b == c or a == c:\n        return \"isosceles\"\n    if a == b and b == c:\n        return \"equilateral\"\n    return \"scalene\"\n"
+    },
+    {
+      "title": "Never checks the last equal pair",
+      "misconception": "Covers a=b and a=c but omits b=c.",
+      "source": "def classify_triangle(a, b, c):\n    if a <= 0 or b <= 0 or c <= 0:\n        return \"invalid\"\n    if a + b <= c or a + c <= b or b + c <= a:\n        return \"invalid\"\n    if a == b and b == c:\n        return \"equilateral\"\n    if a == b or a == c:\n        return \"isosceles\"\n    return \"scalene\"\n"
+    },
+    {
+      "title": "Only checks the last equal pair",
+      "misconception": "Isosceles means b == c, ignoring side permutations.",
+      "source": "def classify_triangle(a, b, c):\n    if a <= 0 or b <= 0 or c <= 0:\n        return \"invalid\"\n    if a + b <= c or a + c <= b or b + c <= a:\n        return \"invalid\"\n    if a == b and b == c:\n        return \"equilateral\"\n    if b == c:\n        return \"isosceles\"\n    return \"scalene\"\n"
+    },
+    {
+      "title": "Only checks the outer equal pair",
+      "misconception": "Isosceles means a == c, ignoring side permutations.",
+      "source": "def classify_triangle(a, b, c):\n    if a <= 0 or b <= 0 or c <= 0:\n        return \"invalid\"\n    if a + b <= c or a + c <= b or b + c <= a:\n        return \"invalid\"\n    if a == b and b == c:\n        return \"equilateral\"\n    if a == c:\n        return \"isosceles\"\n    return \"scalene\"\n"
+    },
+    {
+      "title": "Checks b=c only in descending order",
+      "misconception": "Adds an accidental a > b guard to one side permutation.",
+      "source": "def classify_triangle(a, b, c):\n    if a <= 0 or b <= 0 or c <= 0:\n        return \"invalid\"\n    if a + b <= c or a + c <= b or b + c <= a:\n        return \"invalid\"\n    if a == b and b == c:\n        return \"equilateral\"\n    if a == b or a == c or b == c and a > b:\n        return \"isosceles\"\n    return \"scalene\"\n"
+    },
+    {
+      "title": "Rejects scalene triangles",
+      "misconception": "Treats a valid unequal triangle as invalid.",
+      "source": "def classify_triangle(a, b, c):\n    if a <= 0 or b <= 0 or c <= 0:\n        return \"invalid\"\n    if a + b <= c or a + c <= b or b + c <= a:\n        return \"invalid\"\n    if a == b and b == c:\n        return \"equilateral\"\n    if a == b or b == c or a == c:\n        return \"isosceles\"\n    return \"invalid\"\n"
+    }
+  ],
+  "instructor_tests": [
+    {"inputs": [3, 3, 3], "expected": "equilateral", "label": "equilateral"},
+    {"inputs": [3, 4, 5], "expected": "scalene", "label": "scalene"},
+    {"inputs": [1, 2, 3], "expected": "invalid", "label": "degenerate"},
+    {"inputs": [0, 2, 2], "expected": "invalid", "label": "non-positive"},
+    {"inputs": [2, 2, 3], "expected": "isosceles", "label": "isosceles a=b"}
+  ],
+  "destination": {
+    "kind": "github_pull_request",
+    "repository": "bansalbhunesh/CourseFuzz-Demo-Target",
+    "base_branch": "main",
+    "test_directory": "tests/coursefuzz"
+  }
+}

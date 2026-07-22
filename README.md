@@ -25,6 +25,10 @@ entire misconception corpus.
 6. CourseFuzz reads the destination back, reruns every program, and—for GitHub delivery—waits for
    the target repository's own CI before persisting a verified audit receipt.
 
+The hosted judge workspace already includes **Triangle classifier — GitHub proof**. The matching
+[`examples/github-demo-assignment.json`](examples/github-demo-assignment.json) is committed for
+local reproduction; it contains no credentials or student data.
+
 ## Reproducible proof
 
 - Before: **5/8 mutants killed (62.5%)**; three plausible wrong solutions receive full marks.
