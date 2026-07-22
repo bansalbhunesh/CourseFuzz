@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-
 from coursefuzz.security.rate_limit import TokenBucketRateLimiter
 
 

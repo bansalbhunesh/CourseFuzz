@@ -45,7 +45,10 @@ class TokenBucketRateLimiter:
         bucket.updated_at = now
 
     def allow(self, key: str) -> bool:
-        """Consume one token for ``key``; return ``True`` if permitted, ``False`` if rate-limited."""
+        """Consume one token for *key*.
+
+        Return ``True`` if permitted, ``False`` if rate-limited.
+        """
 
         if not self.enabled:
             return True
@@ -62,7 +65,10 @@ class TokenBucketRateLimiter:
             return False
 
     def retry_after_seconds(self, key: str) -> int:
-        """Whole seconds until ``key`` regains at least one token (>=1 so a client always backs off)."""
+        """Whole seconds until *key* regains at least one token.
+
+        Always >= 1 so a client always backs off.
+        """
 
         if not self.enabled or self._refill <= 0:
             return 1
