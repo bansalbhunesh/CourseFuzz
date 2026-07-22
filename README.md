@@ -72,6 +72,13 @@ preferred GitHub App path: set `COURSEFUZZ_GITHUB_APP_ID`, `COURSEFUZZ_GITHUB_AP
 repository and authenticated workspace, refreshes it before expiry, and never stores it in an
 assignment or run document.
 
+For self-serve onboarding, also set `COURSEFUZZ_GITHUB_WEBHOOK_SECRET` and point the App's webhook
+at `POST /api/github/webhook`. CourseFuzz verifies each `X-Hub-Signature-256`, deduplicates
+deliveries, and records installations durably, so a workspace's repositories are learned from the
+App installation rather than an operator-edited map; `GET /api/github/repositories` returns that
+onboarded set. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the identity-verification boundary
+that gates automatic installation binding.
+
 For a shared deployment, set `COURSEFUZZ_ACCESS_KEYS_JSON` to a JSON object that maps tenant IDs
 to distinct random tokens of at least 24 characters. Protected routes accept bearer credentials;
 the browser exchanges the key for an eight-hour HttpOnly, SameSite-strict session cookie. Imported

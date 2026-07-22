@@ -75,24 +75,35 @@ class GitHubDestinationAdapter:
         has_credentials = (
             self.credentials.available or self.client.base_url.host != "api.github.com"
         )
-        return has_credentials and bool(self.allowed_repositories)
+        return has_credentials and (
+            bool(self.allowed_repositories) or self.credentials.mode == "github-app"
+        )
 
     @property
     def credential_mode(self) -> str:
         return self.credentials.mode
 
+    def _repository_in_scope(self, repository: str, tenant_id: str) -> bool:
+        # The static allowlist guards the permissive static-token path. An App-backed provider
+        # binds each repository to a tenant installation, so its own allows() is authoritative and
+        # supports self-serve onboarding without an operator-managed allowlist entry.
+        if repository.lower() in self.allowed_repositories:
+            return True
+        return self.credentials.mode == "github-app" and self.credentials.allows(
+            repository, tenant_id
+        )
+
     def repository_available(self, repository: str, tenant_id: str = LOCAL_TENANT) -> bool:
         return (
             self.available
-            and repository.lower() in self.allowed_repositories
             and self.credentials.allows(repository, tenant_id)
+            and self._repository_in_scope(repository, tenant_id)
         )
 
-    def _require_allowed_repository(self, repository: str) -> None:
-        if repository.lower() not in self.allowed_repositories:
+    def _require_allowed_repository(self, repository: str, tenant_id: str = LOCAL_TENANT) -> None:
+        if not self._repository_in_scope(repository, tenant_id):
             raise RuntimeError(
-                f"GitHub repository {repository!r} is not in "
-                "COURSEFUZZ_GITHUB_ALLOWED_REPOS"
+                f"GitHub repository {repository!r} is not in COURSEFUZZ_GITHUB_ALLOWED_REPOS"
             )
 
     def prepare(
@@ -110,7 +121,7 @@ class GitHubDestinationAdapter:
             )
         if not target.repository or not target.base_branch:
             raise RuntimeError("GitHub destination is missing repository or base branch")
-        self._require_allowed_repository(target.repository)
+        self._require_allowed_repository(target.repository, tenant_id)
 
         encoded_branch = quote(target.base_branch, safe="")
         response = self._request(
@@ -144,7 +155,7 @@ class GitHubDestinationAdapter:
             or not target.head_branch
         ):
             raise RuntimeError("GitHub candidate is not bound to an exact destination")
-        self._require_allowed_repository(target.repository)
+        self._require_allowed_repository(target.repository, tenant_id)
 
         encoded_head = quote(target.head_branch, safe="")
         branch_response = self._request(
@@ -268,7 +279,7 @@ class GitHubDestinationAdapter:
         This does not merge or mutate anything — it only reads the destination's own CI conclusion.
         """
 
-        self._require_allowed_repository(repository)
+        self._require_allowed_repository(repository, tenant_id)
         encoded_sha = quote(commit_sha, safe="")
         response = self._request(
             "GET",
