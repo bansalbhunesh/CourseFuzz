@@ -10,7 +10,7 @@ exact pytest patch, requires hash-bound approval, writes locally or opens a draf
 request, reads it back, and reruns the entire misconception corpus.
 
 > Status: Round 2 product development is active. The [public beta](https://coursefuzz.onrender.com)
-> and [live two-repository receipt](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/1)
+> and [live two-repository receipt](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/3)
 > prove the full approval → draft PR → target CI → read-back loop. The final public video is the
 > only remaining submission-evidence field; production-scale onboarding and isolation are tracked
 > honestly below.

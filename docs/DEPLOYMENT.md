@@ -82,13 +82,13 @@ tokens, or private-key material. The static beta path reports `static-token`.
 The public demo is live at <https://coursefuzz.onrender.com>. On 2026-07-22, the logged-out browser
 gate rendered successfully and `/api/health` returned HTTP 200 with `storage: postgres`,
 `auth: required`, `github_destination: configured`, and deployed commit
-`4e2c45b976030a46590ce139a3e6e904c65c8fe4`. The matching
-[pull-request CI](https://github.com/bansalbhunesh/CourseFuzz/actions/runs/29880304013) passed the backend,
+`5e1643493e7e9c68a45a1a8e7d0a6fd5264576c4`. The matching
+[main CI](https://github.com/bansalbhunesh/CourseFuzz/actions/runs/29886596892) passed the backend,
 frontend, production-container, frozen-benchmark, and live runc/runsc isolation jobs.
 
 This is deployment evidence, not final video closure. The release manifest is now
 `round-2-active`: the CourseFuzz-created [Demo Target draft PR
-#1](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/1) preserves the external write,
+#3](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/3) preserves the external write,
 byte read-back, and passing target-CI receipt. The final public demo video is still required before
 the manifest can become `submission-ready`.
 

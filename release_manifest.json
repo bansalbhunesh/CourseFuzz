@@ -4,7 +4,7 @@
     "corpus_sha256": "28bac80a9cf89dec3800f64cdd98d610f0341fdb70032d83623572176bb8361f",
     "report": "evaluations/results/frozen-deterministic.json"
   },
-  "live_github_receipt_url": "https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/1",
+  "live_github_receipt_url": "https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/3",
   "public_demo_url": "https://coursefuzz.onrender.com",
   "public_repository_url": "https://github.com/bansalbhunesh/CourseFuzz",
   "status": "round-2-active",

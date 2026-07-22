@@ -91,7 +91,7 @@ latter remains bounded as described below.
   datastore, not production continuity.
 - GitHub branch creation, draft-PR delivery, byte read-back, and target-CI verification are both
   contract-tested and proven against the dedicated public Demo Target in
-  [draft PR #1](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/1). The shared beta token
+  [draft PR #3](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/3). The shared beta token
   can still use a release-scoped integration credential; the Round-2 provider can mint
   per-installation tokens, but installation discovery, signed callbacks, and revocation UI are not
   self-serve yet. The exact mapping remains deployment-managed in this first slice.

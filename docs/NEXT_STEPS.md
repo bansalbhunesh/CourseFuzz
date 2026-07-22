@@ -224,7 +224,7 @@ Do not work on two levels at once when the earlier level's proof is incomplete.
 Perform these tasks in order. Each task should produce a link or committed artifact, not only a
 verbal claim.
 
-1. **Live GitHub receipt — complete.** Demo Target draft PR #1 changes one generated file below
+1. **Live GitHub receipt — complete.** Demo Target draft PR #3 changes one generated file below
    `tests/coursefuzz/`, targets `main`, passed the target pytest workflow, and matches the persisted
    read-back SHA-256.
 2. **Automatic CI closure — complete.** The frontend exposes `external_ci_pending`, polls the
@@ -295,7 +295,8 @@ Work:
   repository as a write target.
 - Completed: deploy the zero-cost `render.yaml` shape with required authentication, hosted Postgres,
   the single-repository GitHub allowlist, and immutable commit evidence.
-- Remaining: execute the deployed GitHub destination flow and preserve the public draft-PR receipt.
+- Completed: execute the deployed GitHub destination flow and preserve public draft PR #3 with
+  byte read-back and passing target CI.
 - Run the complete deployed flow from a clean logged-out desktop and phone-sized browser.
 - Record the 2:50–2:55 demo with burned and platform captions. Show a live draft pull request and
   its read-back receipt.

@@ -10,7 +10,7 @@ or deterministic run as live.
 1. Use the deployed Round-2 commit and verify `/api/health` first. Keep the commit SHA in the final
    evidence frame.
 2. Use a fresh run of the triangle assignment. Keep Demo Target `main` unchanged and close any
-   disposable duplicate PR after recording; preserve canonical receipt PR #1.
+   disposable duplicate PR after recording; preserve canonical receipt PR #3.
 3. Set browser zoom to 100%, viewport to 1440 × 900, pointer size to normal, and disable notification
    popups. Close unrelated tabs and hide bookmarks/personal account details.
 4. Pre-open three tabs: CourseFuzz, the new Demo Target draft PR, and the repository CI/evaluation
