@@ -40,7 +40,8 @@ assignment edits cannot silently change historical evidence.
 3. Generate at most eight bounded hypotheses. GPT-5.6 may propose inputs; it never receives or
    chooses expected outputs.
 4. Establish expected results only when independently authored accepted controls agree.
-5. Reject hypotheses without an executable disagreement; minimize a verified counterexample.
+5. Reject hypotheses without an executable disagreement; select the verified input that catches
+   the most surviving misconception programs, with a deterministic small-input tie-break.
 6. Show the exact regression source, affected misconceptions, accepted-control pass rate,
    destination path, base commit when applicable, and approval SHA-256.
 7. Require an approval token bound to that payload. A changed destination or byte changes the

@@ -5,9 +5,9 @@
 CourseFuzz is an execution-backed assessment red team for instructors. Import a real bounded
 Python assignment, accepted controls, misconception programs, tests, and a write destination.
 GPT-5.6 proposes attack hypotheses; independent program executions decide what is true. The
-product minimizes a real counterexample, shows the exact pytest patch, requires hash-bound
-approval, writes locally or opens a draft GitHub pull request, reads it back, and reruns the
-entire misconception corpus.
+product selects the execution-verified input with the widest misconception coverage, shows the
+exact pytest patch, requires hash-bound approval, writes locally or opens a draft GitHub pull
+request, reads it back, and reruns the entire misconception corpus.
 
 > Status: Round 2 product development is active. The [public beta](https://coursefuzz.onrender.com)
 > and [live two-repository receipt](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/1)
@@ -19,7 +19,7 @@ entire misconception corpus.
 
 1. Import an assignment manifest or open the seeded triangle-classifier example.
 2. Watch hypotheses get filtered by execution, not model confidence.
-3. Inspect the minimized `(1, 2, 2)` counterexample: expected `isosceles`, observed `scalene`.
+3. Inspect the verified `(1, 2, 2)` counterexample: expected `isosceles`, observed `scalene`.
 4. Review the exact generated pytest and approve its SHA-256-bound payload.
 5. Apply the patch locally or to a run-specific GitHub branch and draft pull request.
 6. CourseFuzz reads the destination back, reruns every program, and—for GitHub delivery—waits for
@@ -36,12 +36,12 @@ local reproduction; it contains no credentials or student data.
 - Safety control: **2/2 independently authored accepted solutions still pass (100%)**.
 - Frozen synthetic v1: **10 assignments / 60 wrong programs / 20 accepted controls**.
 - Aggregate mutation score: **53.3% -> 95.0% (+41.7 points)** with **0% false kills**. Each single
-  repair is chosen to discriminate the most wrong programs at once (a feedback-directed selection),
-  not merely the smallest counterexample.
-- Honest baseline: an equal-budget frozen random-8 search also reaches **95.0%** on this small
-  corpus, so the result proves the verified repair loop—not search superiority or real-course
-  generalization. On domains this small a random sweep saturates, so the directed selector cannot be
-  shown to beat it here; see `docs/NEXT_STEPS.md` ("Gap 3, measured").
+  repair is selected from a fixed hypothesis budget to discriminate the most wrong programs at
+  once, not merely to find the first counterexample.
+- Honest baseline: an equal-budget frozen random-8 search reaches **93.3%**, giving CourseFuzz a
+  modest **+1.7-point** edge on this small synthetic corpus. The result proves the verified repair
+  loop; it does not establish search superiority or real-course generalization. See
+  `docs/NEXT_STEPS.md` ("Gap 3, measured").
 - Real-corpus gate: a non-vendored CodeContests/CodeNet-origin manifest now freezes **20 tasks,
   500 wrong programs, 40 oracle programs, and 60 accepted holdout controls** with a complete
   exclusion ledger. It is not yet a scored claim: isolated stdin replay and second review remain

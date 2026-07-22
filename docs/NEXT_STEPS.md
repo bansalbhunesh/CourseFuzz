@@ -69,43 +69,42 @@ The next work must close four honest gates:
    restricted local path; genuinely untrusted programs require a separately deployed runsc worker.
 3. The frozen real-corpus selection is not yet a performance result. Stdin/stdout invocation,
    runtime label validation, sealed baseline candidate files, and second-review signoff remain.
-4. Deterministic CourseFuzz ties an equal-budget random-8 baseline on the small synthetic corpus.
-   Search superiority remains unestablished until the larger held-out corpus can be replayed.
+4. Deterministic CourseFuzz reaches 95.0% versus 93.3% for equal-budget random-8 on the small
+   synthetic corpus. The +1.7-point edge is not a general search-superiority result; that remains
+   unestablished until the larger held-out corpus can be replayed.
 
-### Gap 3, measured: why the tie is structural (2026-07-22)
+### Gap 3, measured: why the synthetic edge is not yet general evidence (2026-07-22)
 
 We instrumented the frozen synthetic corpus by executing every mutant and the reference across each
-assignment's whole bounded domain and reasoning about kill-sets directly (`scratchpad` probe, method
-committed as the directed selector). Aggregate mutation score by strategy:
+assignment's whole bounded domain and reasoning about kill-sets directly (`scratchpad` probe). The
+product itself does not sweep that domain: it verifies at most eight generated candidates in two
+bounded execution waves, then selects the verified input with maximum survivor coverage. Aggregate
+mutation score by strategy:
 
 | Strategy | Mutation score | Notes |
 | --- | --- | --- |
 | Instructor tests only | 53.3% | starting point |
 | Single added test (product) | **93.3% → 95.0%** | one oracle-backed regression test per assignment |
-| Feedback-directed minimal *suite* | 100% | greedy set-cover, ≤2 tests per assignment |
+| Feedback-directed minimal *suite* (offline probe) | 100% | greedy set-cover, ≤2 tests per assignment |
 | Random-8 set-cover | 100% | 8 blind samples, greedy set-cover |
 
-Reading: a feedback-directed suite reaches every wrong program, **but so does an equal-budget
-random-8 set-cover**. The reason is the corpus itself — every domain is ≤27 points, so eight blind
-samples cannot miss the discriminating inputs. On saturated domains a directed search has nothing to
-separate it from random. **This is a corpus limitation, not a search result**, and Milestone 3's
-larger, non-vendored real corpus (with input domains a blind sweep cannot cover) is the only honest
-way to establish or refute superiority. Do not report the current 0.0-point advantage as either a
-win or a defeat for the algorithm; it is a measurement the corpus cannot resolve.
+Reading: one production repair reaches **95.0% versus random-8's 93.3%**, while both offline
+multi-test set-cover probes reach every wrong program. The entire product advantage is one mutant on
+a ten-assignment corpus whose domains contain at most 27 inputs. **That is encouraging engineering
+evidence, not a superiority claim.** Milestone 3's larger, non-vendored real corpus (with input
+spaces a blind sweep cannot saturate) is the honest way to establish or refute a durable advantage.
 
-What shipped from this finding (commit "directed scan", one-test apply contract unchanged): the
-selector no longer verifies a blind winner and then minimizes it toward a single target — which shed
-coverage — but scans the bounded domain for the oracle-resolved input that discriminates the *most*
-surviving mutants, tie-broken toward the smallest input. That lifted single-test mutation score from
-93.3% to 95.0% (the entire gap was one case where the smallest divergent input caught two of three
-survivors and a slightly larger input caught all three). It is the exact mechanism that would
-separate from random once domains are large enough to matter; it changes nothing about the honest
-present-day claim.
+What shipped from this finding (one-test apply contract unchanged): generators preserve equality
+patterns and prioritize legible boundary combinations; accepted controls establish the oracle for
+the fixed candidate batch; surviving programs run against that same batch; and the selector chooses
+the verified input that discriminates the *most* survivors, tie-broken toward smallness. This lifted
+single-test mutation score from 93.3% to 95.0% while replacing a 729-input exhaustive pass with a
+bounded eight-candidate proof path suitable for the hosted product.
 
-Pitch line, honest form: *"CourseFuzz selects the single input that discriminates the most wrong
-programs at once, each expected output established by independent oracles. On assignments small
-enough for a random sweep to saturate, that advantage is invisible; it emerges as the input space
-grows, which is what the real-corpus evaluation is built to measure."*
+Pitch line, honest form: *"CourseFuzz selects the independently verified candidate that catches the
+most surviving wrong programs at once. It has a 1.7-point edge over equal-budget random-8 on our
+small frozen synthetic corpus; the larger held-out evaluation is required before claiming that edge
+generalizes."*
 
 ## How the two repositories connect
 
@@ -215,7 +214,7 @@ Do not work on two levels at once when the earlier level's proof is incomplete.
 | 1. Safe execution | Gateway, runc/runsc adapters, receipts, worker, and live abuse CI shipped. | Deploy the worker on a runsc-capable host and replay the full hostile corpus there. | No student code in the API process; deployed runtime-pinned receipts for every execution. |
 | 2. Trustworthy truth | Consensus `OracleDecision`, abstention, provenance, UI, and audit shipped. | Add reference/property/fixture adapters and versioned stdin/stdout invocation. | Shared-bug and nondeterministic cases abstain; every displayed output links to evidence. |
 | 3. Real evidence | Frozen 20-task/500-wrong manifest, exclusions, leakage boundary, scorer, and CI verifier shipped. | Runtime-validate labels, seal baseline files, and obtain second-review signoff. | Replayable scored results with hashes, uncertainty, costs, and human signoff. |
-| 4. Better search | Shared budget, deduplication, provenance, execution ledger, and directed final selection shipped. | Run equal-budget real-corpus ablations and add survivor-disagreement generation if needed. | Higher recall at equal cost, or equal recall with fewer executions, without more false kills. |
+| 4. Better search | Shared budget, deduplication, provenance, batched verification, and maximum-coverage selection shipped. | Run equal-budget real-corpus ablations and add survivor-disagreement generation if needed. | Higher recall at equal cost, or equal recall with fewer executions, without more false kills. |
 | 5. Real instructor workflow | Repository-scoped App tokens plus target-CI read-back shipped; mapping is deployment-managed. | Persist signed App callbacks, workspace memberships, and repository selection. | Install, analyze, approve, verified draft PR, and recovery without copying tokens or JSON. |
 | 6. Durable service | Postgres persistence and atomic one-time apply claim shipped; single worker topology only. | Add migrations, transactional outbox, leases, immutable object storage, and restore drills. | Multi-instance chaos test and backup/restore exercise pass. |
 | 7. Validated product | Responsive evidence/approval UI exists; no instructor study yet. | Run five observed usability sessions on the evidence-to-approval flow. | Reviewed findings become measured product changes; keyboard, mobile, and AA gates pass. |
@@ -444,7 +443,7 @@ Purpose: establish technical depth in the central algorithm instead of relying o
 ideas.
 
 Status: **budgeted generator contracts, boundary/permutation generators, global deduplication,
-provenance, shared execution accounting, and directed final selection complete; real-corpus
+provenance, shared execution accounting, batched verification, and maximum-coverage selection complete; real-corpus
 ablations and any evidence-driven generator additions remain open.**
 
 Add a common budgeted candidate-generator interface. Each generator receives the same sanitized
@@ -454,15 +453,14 @@ context and remaining execution budget and returns candidates plus provenance. S
 - property-based strategies derived from typed input schemas;
 - model-proposed hypotheses;
 - survivor-disagreement search that selects inputs predicted to partition the remaining wrong
-  programs most strongly. The engine already performs an **execution-backed** directed final scan;
-  promote it to a budgeted generator only if real-corpus ablations show the present boundary and
-  permutation generators are insufficient;
+  programs most strongly. Add it only if real-corpus ablations show the present bounded boundary,
+  permutation, and model-generated candidate batch is insufficient;
 - coverage-guided generation only after coverage collection is isolated from oracle scoring.
 
 The scheduler should deduplicate candidates globally, record which generator produced each one,
 and charge every execution to one shared budget. Use behavioral signatures from executions rather
-than exposing reference answers or frozen labels to the model. Keep minimization downstream of a
-verified disagreement so shrinking cannot manufacture correctness.
+than exposing reference answers or frozen labels to the model. Any future shrinker must re-verify
+the shrunken candidate and preserve or improve survivor coverage.
 
 Tests:
 
@@ -546,7 +544,7 @@ Purpose: help instructors make faster, safer decisions after the backend evidenc
 Add only workflow-facing capabilities:
 
 - batch triage ordered by grading impact and confidence policy;
-- side-by-side failing execution, oracle evidence, minimized input, exact diff, and affected wrong
+- side-by-side failing execution, oracle evidence, selected verified input, exact diff, and affected wrong
   submissions;
 - approve, reject with reason, revise destination, retry, and supersede states;
 - stale-run and changed-base warnings;

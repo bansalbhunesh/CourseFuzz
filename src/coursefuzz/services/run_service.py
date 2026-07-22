@@ -165,16 +165,20 @@ class RunService:
                     # Report the provider that actually produced this run's hypotheses. The
                     # configured mode can be live while a bounded model timeout correctly uses
                     # the deterministic fallback.
-                    "provider": next(
-                        iter(
-                            sorted(
-                                {
-                                    verdict.hypothesis.provider
-                                    for verdict in analysis.hypothesis_verdicts
-                                }
-                            )
-                        ),
-                        self.mode,
+                    "provider": "+".join(
+                        sorted(
+                            {
+                                verdict.hypothesis.provider
+                                for verdict in analysis.hypothesis_verdicts
+                            }
+                        )
+                    )
+                    or self.mode,
+                    "providers": sorted(
+                        {
+                            verdict.hypothesis.provider
+                            for verdict in analysis.hypothesis_verdicts
+                        }
                     ),
                 },
             )
@@ -183,7 +187,10 @@ class RunService:
                     run.id,
                     "analysis.verified",
                     "verify",
-                    "Independent executions verified and minimized one real counterexample.",
+                    (
+                        "Independent executions verified and selected one "
+                        "maximum-coverage counterexample."
+                    ),
                     {
                         "inputs": list(analysis.candidate.test.inputs),
                         "expected": analysis.candidate.test.expected,

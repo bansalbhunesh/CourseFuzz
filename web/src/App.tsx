@@ -656,7 +656,7 @@ export function App() {
                   <header>
                     <span className="proof-mark">PROVEN</span>
                     <div>
-                      <span className="kicker">Smallest counterexample</span>
+                      <span className="kicker">Maximum-coverage counterexample</span>
                       <h3>{run.analysis.candidate.test.label.replace("CourseFuzz regression: ", "")}</h3>
                     </div>
                   </header>
@@ -672,7 +672,10 @@ export function App() {
                       {oracle.sources?.length ? ` · ${oracle.sources.join(", ")}` : ""}
                     </p>
                   )}
-                  <p>Execution reproduced the disagreement after minimizing the generated hypothesis.</p>
+                  <p>
+                    Execution reproduced the disagreement and selected the verified input that
+                    catches the most surviving misconceptions.
+                  </p>
                   <footer>
                     <span>Execution-backed</span>
                     <span>{run.analysis.candidate.target_mutants.length} mutant{run.analysis.candidate.target_mutants.length === 1 ? "" : "s"} killed</span>

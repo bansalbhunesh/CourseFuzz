@@ -3,15 +3,15 @@
     "abstention_rate": 0.0,
     "accepted_controls": 20,
     "assignments": 10,
-    "coursefuzz_advantage_over_random_8_points": 0.0,
-    "coursefuzz_gain_points": 40.0,
-    "coursefuzz_mutation_score": 93.3,
+    "coursefuzz_advantage_over_random_8_points": 1.7,
+    "coursefuzz_gain_points": 41.7,
+    "coursefuzz_mutation_score": 95.0,
     "false_kill_rate": 0.0,
     "finding_rate": 100.0,
     "hypothesis_budget_per_assignment": 8,
     "instructor_mutation_score": 53.3,
-    "median_latency_seconds": 6.211,
-    "p95_latency_seconds": 9.355,
+    "median_latency_seconds": 1.952,
+    "p95_latency_seconds": 2.072,
     "random_8_mutation_score": 93.3,
     "wrong_programs": 60
   },
@@ -24,28 +24,28 @@
       "coursefuzz_finding": true,
       "coursefuzz_killed": 6,
       "instructor_killed": 3,
-      "latency_seconds": 7.927,
-      "minimized_input": [
-        -1
-      ],
+      "latency_seconds": 1.899,
       "mutants": 6,
       "random_8_finding": true,
-      "random_8_killed": 6
+      "random_8_killed": 6,
+      "selected_input": [
+        -1
+      ]
     },
     {
       "accepted_solution_pass_rate": 100.0,
       "assignment_id": "eval-maximum-pair",
       "coursefuzz_finding": true,
-      "coursefuzz_killed": 5,
+      "coursefuzz_killed": 6,
       "instructor_killed": 3,
-      "latency_seconds": 8.409,
-      "minimized_input": [
-        -1,
-        0
-      ],
+      "latency_seconds": 2.072,
       "mutants": 6,
       "random_8_finding": true,
-      "random_8_killed": 5
+      "random_8_killed": 5,
+      "selected_input": [
+        0,
+        1
+      ]
     },
     {
       "accepted_solution_pass_rate": 100.0,
@@ -53,14 +53,14 @@
       "coursefuzz_finding": true,
       "coursefuzz_killed": 6,
       "instructor_killed": 3,
-      "latency_seconds": 9.355,
-      "minimized_input": [
-        0,
-        -1
-      ],
+      "latency_seconds": 1.987,
       "mutants": 6,
       "random_8_finding": true,
-      "random_8_killed": 6
+      "random_8_killed": 6,
+      "selected_input": [
+        0,
+        -1
+      ]
     },
     {
       "accepted_solution_pass_rate": 100.0,
@@ -68,13 +68,13 @@
       "coursefuzz_finding": true,
       "coursefuzz_killed": 6,
       "instructor_killed": 4,
-      "latency_seconds": 4.936,
-      "minimized_input": [
-        -2
-      ],
+      "latency_seconds": 1.866,
       "mutants": 6,
       "random_8_finding": true,
-      "random_8_killed": 6
+      "random_8_killed": 6,
+      "selected_input": [
+        -2
+      ]
     },
     {
       "accepted_solution_pass_rate": 100.0,
@@ -82,13 +82,13 @@
       "coursefuzz_finding": true,
       "coursefuzz_killed": 5,
       "instructor_killed": 2,
-      "latency_seconds": 5.507,
-      "minimized_input": [
-        0
-      ],
+      "latency_seconds": 1.982,
       "mutants": 6,
       "random_8_finding": true,
-      "random_8_killed": 5
+      "random_8_killed": 5,
+      "selected_input": [
+        0
+      ]
     },
     {
       "accepted_solution_pass_rate": 100.0,
@@ -96,13 +96,13 @@
       "coursefuzz_finding": true,
       "coursefuzz_killed": 5,
       "instructor_killed": 3,
-      "latency_seconds": 4.827,
-      "minimized_input": [
-        0
-      ],
+      "latency_seconds": 1.882,
       "mutants": 6,
       "random_8_finding": true,
-      "random_8_killed": 5
+      "random_8_killed": 5,
+      "selected_input": [
+        0
+      ]
     },
     {
       "accepted_solution_pass_rate": 100.0,
@@ -110,13 +110,13 @@
       "coursefuzz_finding": true,
       "coursefuzz_killed": 6,
       "instructor_killed": 3,
-      "latency_seconds": 4.93,
-      "minimized_input": [
-        0
-      ],
+      "latency_seconds": 1.978,
       "mutants": 6,
       "random_8_finding": true,
-      "random_8_killed": 6
+      "random_8_killed": 6,
+      "selected_input": [
+        0
+      ]
     },
     {
       "accepted_solution_pass_rate": 100.0,
@@ -124,14 +124,14 @@
       "coursefuzz_finding": true,
       "coursefuzz_killed": 6,
       "instructor_killed": 5,
-      "latency_seconds": 6.916,
-      "minimized_input": [
-        0,
-        -1
-      ],
+      "latency_seconds": 1.894,
       "mutants": 6,
       "random_8_finding": true,
-      "random_8_killed": 6
+      "random_8_killed": 6,
+      "selected_input": [
+        0,
+        -1
+      ]
     },
     {
       "accepted_solution_pass_rate": 100.0,
@@ -139,15 +139,15 @@
       "coursefuzz_finding": true,
       "coursefuzz_killed": 6,
       "instructor_killed": 4,
-      "latency_seconds": 8.221,
-      "minimized_input": [
-        1,
-        2,
-        1
-      ],
+      "latency_seconds": 1.927,
       "mutants": 6,
       "random_8_finding": true,
-      "random_8_killed": 6
+      "random_8_killed": 6,
+      "selected_input": [
+        1,
+        3,
+        1
+      ]
     },
     {
       "accepted_solution_pass_rate": 100.0,
@@ -155,13 +155,13 @@
       "coursefuzz_finding": true,
       "coursefuzz_killed": 5,
       "instructor_killed": 2,
-      "latency_seconds": 5.343,
-      "minimized_input": [
-        1
-      ],
+      "latency_seconds": 2.018,
       "mutants": 6,
       "random_8_finding": true,
-      "random_8_killed": 5
+      "random_8_killed": 5,
+      "selected_input": [
+        1
+      ]
     }
   ],
   "corpus_sha256": "28bac80a9cf89dec3800f64cdd98d610f0341fdb70032d83623572176bb8361f",

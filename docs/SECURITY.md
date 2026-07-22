@@ -15,8 +15,8 @@
   identifier. At most four timed-out calls may unwind concurrently; saturation or timeout uses
   deterministic hypotheses while preserving the execution budget for proof.
 - A startup-validated 30-to-120-second total engine deadline (60 seconds by default) shared across
-  baseline execution, hypothesis verification, exhaustive minimization, and the projected
-  regression run. Per-program sandbox ceilings remain 1.5 seconds.
+  baseline execution, batched hypothesis verification, maximum-coverage selection, and the
+  projected regression run. Per-program sandbox ceilings remain 1.5 seconds.
 - Deterministic fallback if GPT-5.6 is unavailable or refuses/malforms its output.
 - Destination file read-back and post-write regression verification.
 - Content-addressed assignment snapshots; runs bind the full snapshot SHA-256.

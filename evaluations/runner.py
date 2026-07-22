@@ -144,7 +144,7 @@ def run_inference() -> dict:
                 "random_8_killed": random_analysis.projected_after.killed_mutants,
                 "coursefuzz_finding": analysis.candidate is not None,
                 "random_8_finding": random_analysis.candidate is not None,
-                "minimized_input": (
+                "selected_input": (
                     list(analysis.candidate.test.inputs) if analysis.candidate else None
                 ),
                 "accepted_solution_pass_rate": (

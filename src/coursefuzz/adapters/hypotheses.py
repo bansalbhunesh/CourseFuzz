@@ -95,17 +95,44 @@ class DeterministicHypothesisProvider(HypothesisProvider):
                             "input-order blind spot",
                         )
                     )
+                    # Equality-pattern tests often hide a second bug behind a magnitude guard.
+                    # Move the one distinct position to the smallest positive in-domain value;
+                    # this keeps the equality pattern while probing the missing order/magnitude
+                    # interaction (for example 3,2,2 -> 1,2,2).
+                    anchor = max(context.domain_min, min(context.domain_max, 1))
+                    for index, value in enumerate(permuted):
+                        if permuted.count(value) != 1 or value == anchor:
+                            continue
+                        shrunk = list(permuted)
+                        shrunk[index] = anchor
+                        candidates.append(
+                            (
+                                tuple(shrunk),
+                                "Preserve the equality pattern while shrinking its distinct input.",
+                                "order and magnitude interaction",
+                            )
+                        )
 
         boundaries = sorted(
             {
                 context.domain_min,
+                min(context.domain_max, context.domain_min + 1),
                 context.domain_max,
+                max(context.domain_min, context.domain_max - 1),
                 0,
                 max(context.domain_min, min(context.domain_max, 1)),
             }
             & set(range(context.domain_min, context.domain_max + 1))
         )
-        for values in product(boundaries, repeat=len(context.input_names)):
+        boundary_cases = sorted(
+            product(boundaries, repeat=len(context.input_names)),
+            key=lambda values: (
+                sum(abs(value) for value in values),
+                max(abs(value) for value in values),
+                values,
+            ),
+        )
+        for values in boundary_cases:
             candidates.append(
                 (
                     tuple(values),
@@ -250,7 +277,22 @@ class ResilientHypothesisProvider(HypothesisProvider):
             return self.fallback.propose(context, survivors)
         if isinstance(outcome, Exception):
             return self.fallback.propose(context, survivors)
-        return outcome
+        # Live hypotheses provide semantic targeting; deterministic candidates guarantee stable
+        # boundary and permutation coverage. Reserve half the fixed eight-item budget for each,
+        # deduplicate by input, and reissue stable IDs for the combined batch.
+        fallback = self.fallback.propose(context, survivors)
+        combined: list[AttackHypothesis] = []
+        seen: set[tuple[int, ...]] = set()
+        for item in (*outcome[:4], *fallback):
+            if item.inputs in seen:
+                continue
+            seen.add(item.inputs)
+            combined.append(
+                item.model_copy(update={"id": f"hypothesis-{len(combined) + 1}"})
+            )
+            if len(combined) == 8:
+                break
+        return tuple(combined)
 
 
 def build_hypothesis_provider() -> HypothesisProvider:

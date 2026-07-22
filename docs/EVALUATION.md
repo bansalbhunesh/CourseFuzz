@@ -6,7 +6,7 @@ For the seeded triangle-classification assignment:
 
 - Instructor tests kill 5 of 8 realistic misconception mutants: **62.5% mutation score**.
 - Three wrong solutions still receive full marks.
-- CourseFuzz verifies and minimizes the input to `(1, 2, 2)`.
+- CourseFuzz verifies and selects `(1, 2, 2)` because it kills the most surviving misconceptions.
 - The approved regression kills all 8 mutants: **100% mutation score**.
 - Both independently authored accepted solutions continue to pass: **100% accepted-solution pass rate**.
 
@@ -25,14 +25,13 @@ For frozen synthetic benchmark v1:
   discriminate the most wrong programs at once;
 - all 20 accepted controls still pass: **0% false-kill rate**;
 - findings are produced for 10/10 assignments with no abstentions;
-- a frozen equal-budget random-8 provider also reaches **95.0%**.
+- a frozen equal-budget random-8 provider reaches **93.3%**, a **+1.7-point** CourseFuzz edge.
 
-The random tie is a material limitation, and it is now measured to be structural: every domain in v1
-is small enough (≤27 points) that eight blind samples saturate the discriminating inputs, so no
-selector can be shown to beat random here (see `NEXT_STEPS.md`, "Gap 3, measured"). This benchmark
-supports the claim that the complete verification-and-repair loop improves these instructor suites
-without rejecting accepted controls. It does not support a claim that deterministic CourseFuzz search
-beats random input generation; establishing or refuting that needs the larger real corpus.
+The one-mutant advantage is too small and the synthetic corpus too bounded (≤27 inputs per
+assignment) to support a general search-superiority claim. This benchmark supports the claim that
+the complete verification-and-repair loop improves these instructor suites without rejecting
+accepted controls. Establishing or refuting a durable advantage over random input generation needs
+the larger held-out real corpus (see `NEXT_STEPS.md`, "Gap 3, measured").
 
 Run and verify the frozen evidence:
 
@@ -48,7 +47,7 @@ locked in `evaluations/frozen_expectations.json` and checked in CI.
 The runner completes all inference before opening the expected-result file. Every hypothesis
 provider receives a sanitized `HypothesisContext`: title, summary, input names, bounded domain,
 existing input tuples and labels, and source-free survivor hints. The type contains no program
-source, accepted controls, expected outputs, minimized answer, or frozen labels. Correctness comes
+source, accepted controls, expected outputs, selected answer, or frozen labels. Correctness comes
 from accepted-solution consensus and execution after proposals cross that boundary.
 
 Synthetic v1 was authored within this repository, contains no personal data, and is not presented
