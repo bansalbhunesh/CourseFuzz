@@ -44,6 +44,18 @@ def test_worker_analyzes_a_queued_run(tmp_path: Path) -> None:
     assert result.analysis is not None and result.analysis.candidate is not None
 
 
+def test_worker_seeds_the_hosted_github_proof_assignment(tmp_path: Path) -> None:
+    service = build_worker_service(
+        LocalRestrictedRunner(),
+        database_path=tmp_path / "worker-seed.db",
+        artifact_dir=tmp_path / "artifacts",
+    )
+
+    snapshot = service.assignments.require("triangle-classifier-github-demo", "local-demo")
+
+    assert snapshot.spec.title == "Triangle classifier — GitHub proof"
+
+
 def test_api_defers_analysis_to_the_worker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """With COURSEFUZZ_DEFER_ANALYSIS set, the API enqueues without analyzing, and a worker sharing
     the repository claims and completes the run -- the real API/worker split.

@@ -14,6 +14,7 @@ from coursefuzz.adapters.destinations import DestinationCoordinator
 from coursefuzz.adapters.hypotheses import build_hypothesis_provider
 from coursefuzz.adapters.sandbox import SubprocessPythonSandbox
 from coursefuzz.api.routes import build_router
+from coursefuzz.config import analysis_deadline_seconds
 from coursefuzz.data.demo import TRIANGLE_ASSIGNMENT, TRIANGLE_GITHUB_ASSIGNMENT
 from coursefuzz.domain.engine import AssessmentEngine
 from coursefuzz.repositories.postgres import PostgresRunRepository
@@ -40,7 +41,11 @@ def create_app(
     assignment_service = AssignmentService(repository, sandbox)
     assignment_service.seed(TRIANGLE_ASSIGNMENT)
     assignment_service.seed(TRIANGLE_GITHUB_ASSIGNMENT)
-    engine = AssessmentEngine(sandbox, provider)
+    engine = AssessmentEngine(
+        sandbox,
+        provider,
+        max_analysis_seconds=analysis_deadline_seconds(),
+    )
     service = RunService(
         repository,
         engine,

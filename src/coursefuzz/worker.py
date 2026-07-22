@@ -21,7 +21,8 @@ from pathlib import Path
 from coursefuzz.adapters.hypotheses import build_hypothesis_provider
 from coursefuzz.adapters.isolated_runner import DockerIsolatedRunner, GVisorDockerRunner
 from coursefuzz.adapters.sandbox import LocalRestrictedRunner
-from coursefuzz.data.demo import TRIANGLE_ASSIGNMENT
+from coursefuzz.config import analysis_deadline_seconds
+from coursefuzz.data.demo import TRIANGLE_ASSIGNMENT, TRIANGLE_GITHUB_ASSIGNMENT
 from coursefuzz.domain.engine import AssessmentEngine
 from coursefuzz.domain.execution import ExecutionGateway
 from coursefuzz.repositories.postgres import PostgresRunRepository
@@ -63,7 +64,12 @@ def build_worker_service(
     )
     assignment_service = AssignmentService(repository, backend)
     assignment_service.seed(TRIANGLE_ASSIGNMENT)
-    engine = AssessmentEngine(backend, provider)
+    assignment_service.seed(TRIANGLE_GITHUB_ASSIGNMENT)
+    engine = AssessmentEngine(
+        backend,
+        provider,
+        max_analysis_seconds=analysis_deadline_seconds(),
+    )
     return RunService(
         repository,
         engine,

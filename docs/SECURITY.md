@@ -13,9 +13,10 @@
 - One bounded GPT-5.6 request with structured output, low reasoning effort, 1,400 maximum output
   tokens, a 12-second hard wall budget, no hidden retry, `store=False`, and a non-PII safety
   identifier. At most four timed-out calls may unwind concurrently; saturation or timeout uses
-  deterministic hypotheses while preserving enough of the 30-second engine budget for proof.
-- A 30-second total engine deadline shared across baseline execution, hypothesis verification,
-  minimization, and the projected regression run.
+  deterministic hypotheses while preserving the execution budget for proof.
+- A startup-validated 30-to-120-second total engine deadline (60 seconds by default) shared across
+  baseline execution, hypothesis verification, exhaustive minimization, and the projected
+  regression run. Per-program sandbox ceilings remain 1.5 seconds.
 - Deterministic fallback if GPT-5.6 is unavailable or refuses/malforms its output.
 - Destination file read-back and post-write regression verification.
 - Content-addressed assignment snapshots; runs bind the full snapshot SHA-256.
