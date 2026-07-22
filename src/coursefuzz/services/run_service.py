@@ -50,9 +50,14 @@ class RunService:
         assignment = self.assignments.require(assignment_id, tenant_id)
         if (
             isinstance(assignment.spec.destination, GitHubPullRequestDestination)
-            and not self.github_destination_available
+            and not self.destinations.github.repository_available(
+                assignment.spec.destination.repository,
+                tenant_id,
+            )
         ):
-            raise ValueError("GitHub destination is not configured on this CourseFuzz instance")
+            raise ValueError(
+                "GitHub destination is not configured or authorized for this workspace"
+            )
         now = utc_now()
         run = RunView(
             id=f"run_{uuid4().hex[:16]}",
@@ -86,6 +91,10 @@ class RunService:
     @property
     def github_destination_available(self) -> bool:
         return self.destinations.github.available
+
+    @property
+    def github_destination_auth_mode(self) -> str:
+        return self.destinations.github.credential_mode
 
     def recover_incomplete_runs(self, limit: int = 10) -> int:
         recovered = 0
@@ -144,7 +153,7 @@ class RunService:
             assignment = self._assignment_for_run(run, tenant_id)
             analysis = self.engine.analyze(assignment)
             if analysis.candidate:
-                prepared = self.destinations.prepare(run.id, analysis.candidate)
+                prepared = self.destinations.prepare(run.id, analysis.candidate, tenant_id)
                 analysis = analysis.model_copy(update={"candidate": prepared})
             self.repository.append_event(
                 run.id,
@@ -283,7 +292,7 @@ class RunService:
         )
 
         try:
-            applied = self.destinations.apply(run.id, candidate)
+            applied = self.destinations.apply(run.id, candidate, tenant_id)
             metrics = self.engine.verify_applied_patch(
                 self._assignment_for_run(run, tenant_id), candidate
             )
@@ -389,7 +398,11 @@ class RunService:
         ):
             return run
 
-        status = self.destinations.github.check_runs(receipt.repository, receipt.commit_sha)
+        status = self.destinations.github.check_runs(
+            receipt.repository,
+            receipt.commit_sha,
+            tenant_id,
+        )
         moment = now()
         started = receipt.external_ci_started_at or moment
         elapsed = (moment - started).total_seconds()

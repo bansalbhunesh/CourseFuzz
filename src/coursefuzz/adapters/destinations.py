@@ -13,6 +13,12 @@ import httpx
 
 from coursefuzz.domain.engine import bind_candidate_payload
 from coursefuzz.domain.models import ActionReceipt, CandidatePatch
+from coursefuzz.security.access import LOCAL_TENANT
+from coursefuzz.security.github_app import (
+    GitHubCredentialProvider,
+    StaticGitHubCredentialProvider,
+    credential_provider_from_env,
+)
 
 GITHUB_API_VERSION = "2026-03-10"
 RETRYABLE_STATUSES = {429, 502, 503, 504}
@@ -41,27 +47,46 @@ class GitHubDestinationAdapter:
         token: str | None = None,
         client: httpx.Client | None = None,
         allowed_repositories: set[str] | None = None,
+        credential_provider: GitHubCredentialProvider | None = None,
     ) -> None:
-        self.token = token or os.getenv("COURSEFUZZ_GITHUB_TOKEN")
-        configured_repositories = os.getenv("COURSEFUZZ_GITHUB_ALLOWED_REPOS", "")
-        self.allowed_repositories = {
-            repository.strip().lower()
-            for repository in (
-                allowed_repositories
-                if allowed_repositories is not None
-                else configured_repositories.split(",")
-            )
-            if repository.strip()
-        }
         self.client = client or httpx.Client(
             base_url="https://api.github.com",
             timeout=10.0,
         )
+        self.credentials = (
+            credential_provider
+            or (StaticGitHubCredentialProvider(token) if token is not None else None)
+            or credential_provider_from_env(client=self.client)
+        )
+        configured_repositories = os.getenv("COURSEFUZZ_GITHUB_ALLOWED_REPOS", "")
+        repository_scope = (
+            allowed_repositories
+            if allowed_repositories is not None
+            else configured_repositories.split(",")
+        )
+        self.allowed_repositories = {
+            repository.strip().lower() for repository in repository_scope if repository.strip()
+        }
+        if allowed_repositories is None and not self.allowed_repositories:
+            self.allowed_repositories = set(self.credentials.repositories)
 
     @property
     def available(self) -> bool:
-        has_credentials = bool(self.token) or self.client.base_url.host != "api.github.com"
+        has_credentials = (
+            self.credentials.available or self.client.base_url.host != "api.github.com"
+        )
         return has_credentials and bool(self.allowed_repositories)
+
+    @property
+    def credential_mode(self) -> str:
+        return self.credentials.mode
+
+    def repository_available(self, repository: str, tenant_id: str = LOCAL_TENANT) -> bool:
+        return (
+            self.available
+            and repository.lower() in self.allowed_repositories
+            and self.credentials.allows(repository, tenant_id)
+        )
 
     def _require_allowed_repository(self, repository: str) -> None:
         if repository.lower() not in self.allowed_repositories:
@@ -70,14 +95,18 @@ class GitHubDestinationAdapter:
                 "COURSEFUZZ_GITHUB_ALLOWED_REPOS"
             )
 
-    def prepare(self, run_id: str, candidate: CandidatePatch) -> CandidatePatch:
+    def prepare(
+        self,
+        run_id: str,
+        candidate: CandidatePatch,
+        tenant_id: str = LOCAL_TENANT,
+    ) -> CandidatePatch:
         target = candidate.target
         if target.kind != "github_pull_request":
             return candidate
         if not self.available:
             raise RuntimeError(
-                "GitHub destination requires COURSEFUZZ_GITHUB_TOKEN and a non-empty "
-                "COURSEFUZZ_GITHUB_ALLOWED_REPOS allowlist"
+                "GitHub destination requires configured credentials and repository scope"
             )
         if not target.repository or not target.base_branch:
             raise RuntimeError("GitHub destination is missing repository or base branch")
@@ -87,6 +116,8 @@ class GitHubDestinationAdapter:
         response = self._request(
             "GET",
             f"/repos/{target.repository}/git/ref/heads/{encoded_branch}",
+            repository=target.repository,
+            tenant_id=tenant_id,
         )
         base_commit_sha = str(response.json()["object"]["sha"])
         branch_suffix = candidate.id.removeprefix("patch-")[:8]
@@ -99,7 +130,11 @@ class GitHubDestinationAdapter:
         )
         return bind_candidate_payload(candidate.model_copy(update={"target": prepared_target}))
 
-    def apply(self, candidate: CandidatePatch) -> AppliedDestination:
+    def apply(
+        self,
+        candidate: CandidatePatch,
+        tenant_id: str = LOCAL_TENANT,
+    ) -> AppliedDestination:
         target = candidate.target
         if (
             target.kind != "github_pull_request"
@@ -115,6 +150,8 @@ class GitHubDestinationAdapter:
         branch_response = self._request(
             "POST",
             f"/repos/{target.repository}/git/refs",
+            repository=target.repository,
+            tenant_id=tenant_id,
             json={
                 "ref": f"refs/heads/{target.head_branch}",
                 "sha": target.base_commit_sha,
@@ -125,11 +162,15 @@ class GitHubDestinationAdapter:
             self._request(
                 "GET",
                 f"/repos/{target.repository}/git/ref/heads/{encoded_head}",
+                repository=target.repository,
+                tenant_id=tenant_id,
             )
 
         existing = self._request(
             "GET",
             f"/repos/{target.repository}/contents/{target.path}",
+            repository=target.repository,
+            tenant_id=tenant_id,
             params={"ref": target.head_branch},
             allowed={200, 404},
         )
@@ -148,6 +189,8 @@ class GitHubDestinationAdapter:
             written = self._request(
                 "PUT",
                 f"/repos/{target.repository}/contents/{target.path}",
+                repository=target.repository,
+                tenant_id=tenant_id,
                 json=write_payload,
                 allowed={200, 201},
             )
@@ -157,6 +200,8 @@ class GitHubDestinationAdapter:
         pull = self._request(
             "POST",
             f"/repos/{target.repository}/pulls",
+            repository=target.repository,
+            tenant_id=tenant_id,
             json={
                 "title": f"CourseFuzz: add verified regression for {candidate.test.label}",
                 "body": self._pull_request_body(candidate),
@@ -170,6 +215,8 @@ class GitHubDestinationAdapter:
             existing_pulls = self._request(
                 "GET",
                 f"/repos/{target.repository}/pulls",
+                repository=target.repository,
+                tenant_id=tenant_id,
                 params={
                     "state": "open",
                     "head": f"{owner}:{target.head_branch}",
@@ -185,6 +232,8 @@ class GitHubDestinationAdapter:
         read_back = self._request(
             "GET",
             f"/repos/{target.repository}/contents/{target.path}",
+            repository=target.repository,
+            tenant_id=tenant_id,
             params={"ref": target.head_branch},
         ).json()
         read_back_bytes = base64.b64decode(read_back["content"])
@@ -206,7 +255,12 @@ class GitHubDestinationAdapter:
             )
         )
 
-    def check_runs(self, repository: str, commit_sha: str) -> CheckRunStatus:
+    def check_runs(
+        self,
+        repository: str,
+        commit_sha: str,
+        tenant_id: str = LOCAL_TENANT,
+    ) -> CheckRunStatus:
         """Read the target repository's CI for one commit and aggregate its check-runs.
 
         Returns ``pending`` while any check is unfinished or none have appeared yet, ``success``
@@ -219,6 +273,8 @@ class GitHubDestinationAdapter:
         response = self._request(
             "GET",
             f"/repos/{repository}/commits/{encoded_sha}/check-runs",
+            repository=repository,
+            tenant_id=tenant_id,
         )
         runs = response.json().get("check_runs") or []
         if not runs:
@@ -260,6 +316,8 @@ class GitHubDestinationAdapter:
         method: str,
         url: str,
         *,
+        repository: str,
+        tenant_id: str,
         allowed: set[int] | None = None,
         **kwargs: object,
     ) -> httpx.Response:
@@ -268,8 +326,9 @@ class GitHubDestinationAdapter:
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": GITHUB_API_VERSION,
         }
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
+        token = self.credentials.token_for(repository, tenant_id)
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
         last_response: httpx.Response | None = None
         for attempt in range(2):
             response = self.client.request(method, url, headers=headers, **kwargs)
@@ -296,14 +355,24 @@ class DestinationCoordinator:
         self.artifact_dir = Path(artifact_dir)
         self.github = github or GitHubDestinationAdapter()
 
-    def prepare(self, run_id: str, candidate: CandidatePatch) -> CandidatePatch:
+    def prepare(
+        self,
+        run_id: str,
+        candidate: CandidatePatch,
+        tenant_id: str = LOCAL_TENANT,
+    ) -> CandidatePatch:
         if candidate.target.kind == "github_pull_request":
-            return self.github.prepare(run_id, candidate)
+            return self.github.prepare(run_id, candidate, tenant_id)
         return candidate
 
-    def apply(self, run_id: str, candidate: CandidatePatch) -> AppliedDestination:
+    def apply(
+        self,
+        run_id: str,
+        candidate: CandidatePatch,
+        tenant_id: str = LOCAL_TENANT,
+    ) -> AppliedDestination:
         if candidate.target.kind == "github_pull_request":
-            return self.github.apply(candidate)
+            return self.github.apply(candidate, tenant_id)
 
         run_dir = (self.artifact_dir / run_id).resolve()
         artifact_path = (run_dir / candidate.target.path).resolve()

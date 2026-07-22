@@ -65,6 +65,7 @@ def test_protected_api_requires_a_valid_credential(tmp_path: Path) -> None:
     client = build_client(tmp_path)
 
     assert client.get("/api/health").json()["auth"] == "required"
+    assert client.get("/api/health").json()["github_auth"] == "unconfigured"
     missing = client.get("/api/assignments")
     invalid = client.get(
         "/api/assignments", headers=authorization("not-a-real-coursefuzz-token")
@@ -73,6 +74,22 @@ def test_protected_api_requires_a_valid_credential(tmp_path: Path) -> None:
     assert missing.status_code == 401
     assert missing.headers["www-authenticate"] == "Bearer"
     assert invalid.status_code == 401
+
+
+def test_health_reports_github_auth_mode_without_exposing_credential(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    token = "github-token-that-must-never-leave-the-server"
+    monkeypatch.setenv("COURSEFUZZ_GITHUB_TOKEN", token)
+    monkeypatch.setenv("COURSEFUZZ_GITHUB_ALLOWED_REPOS", "course-owner/autograder")
+    app = create_app(tmp_path / "coursefuzz.db", tmp_path / "artifacts")
+    health = TestClient(app).get("/api/health")
+
+    assert health.status_code == 200
+    assert health.json()["github_destination"] == "configured"
+    assert health.json()["github_auth"] == "static-token"
+    assert token not in health.text
 
 
 def test_assignments_runs_and_approvals_are_tenant_scoped(tmp_path: Path) -> None:

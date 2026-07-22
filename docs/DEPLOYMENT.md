@@ -64,13 +64,24 @@ use the product repository itself as a destructive demo target. Set the server-s
 allowlist even when the token itself is already repository-scoped. The target repository must
 provide `solution.py` with the assignment entrypoint so its CI can execute the generated pytest.
 
+For multi-workspace Round-2 deployments, replace the static token with all three GitHub App values:
+
+- `COURSEFUZZ_GITHUB_APP_ID` — the numeric App ID;
+- `COURSEFUZZ_GITHUB_APP_PRIVATE_KEY` — the PEM private key (literal `\n` escapes are accepted);
+- `COURSEFUZZ_GITHUB_INSTALLATIONS_JSON` — tenant IDs mapped to exact repository/installation-ID
+  maps, for example `{"course-a":{"owner/autograder":12345}}`.
+
+The App configuration is fail-closed: supplying only one or two values prevents startup. When App
+mode is active, `/api/health` reports `github_auth: github-app`; it never returns installation IDs,
+tokens, or private-key material. The static beta path reports `static-token`.
+
 ## Current evidence and blocker
 
 The public demo is live at <https://coursefuzz.onrender.com>. On 2026-07-22, the logged-out browser
 gate rendered successfully and `/api/health` returned HTTP 200 with `storage: postgres`,
 `auth: required`, `github_destination: configured`, and deployed commit
-`da42f777b091775c6512b2b868bfde0693c8de67`. The matching
-[main CI run](https://github.com/bansalbhunesh/CourseFuzz/actions/runs/29877846875) passed the backend,
+`4e2c45b976030a46590ce139a3e6e904c65c8fe4`. The matching
+[pull-request CI](https://github.com/bansalbhunesh/CourseFuzz/actions/runs/29880304013) passed the backend,
 frontend, production-container, frozen-benchmark, and live runc/runsc isolation jobs.
 
 This is deployment evidence, not final video closure. The release manifest is now

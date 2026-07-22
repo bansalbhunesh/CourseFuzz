@@ -44,9 +44,12 @@ Build the product in four release trains, each independently deployable:
    stable. Exit only when every public claim is reproducible from committed hashes and reviewed
    evidence.
 
-The first Round-2 production branch should implement the GitHub App boundary and workspace model;
-the existing `ExecutionGateway`, atomic approval claim, destination adapter, Postgres repository,
-and external-CI state machine are retained rather than rewritten.
+The first Round-2 production branch implements the credential half of this boundary: exact
+repository-to-installation mapping, short-lived repository-scoped tokens, safe caching, visible
+health mode, and static-token compatibility. The next slice persists workspace memberships and App
+installations from signed callbacks, then exposes the repository picker. The existing
+`ExecutionGateway`, atomic approval claim, destination adapter, Postgres repository, and external-CI
+state machine are retained rather than rewritten.
 
 ## Current baseline
 
@@ -213,7 +216,7 @@ Do not work on two levels at once when the earlier level's proof is incomplete.
 | 2. Trustworthy truth | Consensus `OracleDecision`, abstention, provenance, UI, and audit shipped. | Add reference/property/fixture adapters and versioned stdin/stdout invocation. | Shared-bug and nondeterministic cases abstain; every displayed output links to evidence. |
 | 3. Real evidence | Frozen 20-task/500-wrong manifest, exclusions, leakage boundary, scorer, and CI verifier shipped. | Runtime-validate labels, seal baseline files, and obtain second-review signoff. | Replayable scored results with hashes, uncertainty, costs, and human signoff. |
 | 4. Better search | Shared budget, deduplication, provenance, execution ledger, and directed final selection shipped. | Run equal-budget real-corpus ablations and add survivor-disagreement generation if needed. | Higher recall at equal cost, or equal recall with fewer executions, without more false kills. |
-| 5. Real instructor workflow | Token-based draft PR plus target-CI read-back shipped. | Replace the shared token with a repository-scoped GitHub App importer. | Install, analyze, approve, verified draft PR, and recovery without copying tokens or JSON. |
+| 5. Real instructor workflow | Repository-scoped App tokens plus target-CI read-back shipped; mapping is deployment-managed. | Persist signed App callbacks, workspace memberships, and repository selection. | Install, analyze, approve, verified draft PR, and recovery without copying tokens or JSON. |
 | 6. Durable service | Postgres persistence and atomic one-time apply claim shipped; single worker topology only. | Add migrations, transactional outbox, leases, immutable object storage, and restore drills. | Multi-instance chaos test and backup/restore exercise pass. |
 | 7. Validated product | Responsive evidence/approval UI exists; no instructor study yet. | Run five observed usability sessions on the evidence-to-approval flow. | Reviewed findings become measured product changes; keyboard, mobile, and AA gates pass. |
 
