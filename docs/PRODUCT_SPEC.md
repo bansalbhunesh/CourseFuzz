@@ -55,7 +55,14 @@ assignment edits cannot silently change historical evidence.
 
 - hardened microVM/container execution for hostile submissions;
 - license-reviewed real-course evaluation with independently reviewed labels (synthetic v1 is complete);
-- public deployment, live GitHub integration proof, demo video, and captions.
+- final demo video and captions;
+- self-serve institutional identity, repository installation, quotas, and recoverable multi-worker
+  operations for broad production use.
+
+The public deployment and dedicated live GitHub integration proof are complete. The canonical
+receipt is [Demo Target draft PR #1](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/1):
+the generated file was read back byte-for-byte and the target repository's own CI passed before
+CourseFuzz marked the run verified.
 
 These gates are tracked in the canonical edge-case matrix and security document. They must not be
 papered over with demo claims.

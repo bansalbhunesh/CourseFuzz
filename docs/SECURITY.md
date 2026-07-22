@@ -81,8 +81,11 @@ latter remains bounded as described below.
 - SQLite is durable for a single instance, not a horizontally scaled deployment.
 - The zero-cost Render database expires after 30 days and has no backups; it is a time-bounded demo
   datastore, not production continuity.
-- GitHub branch creation and PR delivery are contract-tested with a fake transport but have not
-  yet been proven against a dedicated live integration repository.
+- GitHub branch creation, draft-PR delivery, byte read-back, and target-CI verification are both
+  contract-tested and proven against the dedicated public Demo Target in
+  [draft PR #1](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/1). The shared beta token
+  is still a release-scoped integration credential; broad production use requires per-installation
+  GitHub App tokens and revocation.
 - The seeded programs contain no personal data. No PII redaction pipeline exists yet.
 
 Do not describe the current runner as production-safe arbitrary-code execution.

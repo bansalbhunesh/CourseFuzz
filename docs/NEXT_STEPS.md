@@ -14,6 +14,40 @@ wrong submissions without rejecting independently accepted solutions.
 The product is deeper when each claim has a durable artifact and an adversarial test—not when the
 repository has more pages, agents, or integrations.
 
+## Round 2 product objective
+
+“Used by the masses” means a self-serve service for many independent instructors and course teams,
+not an anonymous endpoint that can execute arbitrary code or write through one shared GitHub token.
+The Round-2 golden path remains narrow:
+
+> Install CourseFuzz on one autograder repository → select an assignment → observe an
+> execution-backed grading gap → approve one exact patch → receive a draft PR → see target CI and
+> read-back verification → revisit the durable audit record.
+
+Build the product in four release trains, each independently deployable:
+
+1. **Self-serve trust:** GitHub App installation, user/workspace identity, repository picker,
+   installation-token minting, tenant-scoped authorization, onboarding, revocation, and a safe
+   read-only sample workspace. Exit only when two test tenants cannot read or write each other's
+   assignments, runs, repositories, receipts, or event streams.
+2. **Isolated execution:** versioned stdin/stdout contract, separate gVisor worker pool, signed and
+   expiring job/receipt envelopes, no network, pinned image digest, hard CPU/memory/output limits,
+   queue backpressure, cancellation, and hostile-corpus replay. Exit only when no submitted program
+   executes in the web process and every result identifies its runtime image and limits.
+3. **Durable operations:** database migrations, transactional outbox, leased jobs, idempotent
+   retries, immutable object storage, per-tenant quotas, cost ledger, rate limits, structured
+   telemetry, backup/restore drill, and an operator incident view. Exit only after crash/resume,
+   duplicate delivery, partial GitHub failure, and restore tests preserve exactly-once approval.
+4. **Real-course credibility:** licensed stdin/stdout corpus replay, runtime label validation,
+   sealed equal-budget baselines, second human review, uncertainty intervals, five observed
+   instructor sessions, accessibility gates, and an LMS importer only after the repository flow is
+   stable. Exit only when every public claim is reproducible from committed hashes and reviewed
+   evidence.
+
+The first Round-2 production branch should implement the GitHub App boundary and workspace model;
+the existing `ExecutionGateway`, atomic approval claim, destination adapter, Postgres repository,
+and external-CI state machine are retained rather than rewritten.
+
 ## Current baseline
 
 CourseFuzz has the full verified repair workflow plus four deeper foundations: a versioned
@@ -21,12 +55,13 @@ CourseFuzz has the full verified repair workflow plus four deeper foundations: a
 budgeted/deduplicated candidate generators with a shared execution ledger, and a non-vendored
 CodeContests/CodeNet-origin evaluation manifest and hidden-scorer contract. Exact approval
 consumption and the `approved -> applying` claim are one database transaction in SQLite and
-Postgres. External GitHub delivery remains pending until the target repository's own CI is read
-back. Every one of those claims has committed tests.
+Postgres. External GitHub delivery has now been proven against the dedicated Demo Target: draft PR
+#1 preserves the generated file, passing target CI, and read-back evidence. Every one of those
+claims has committed tests or a public external receipt.
 
 The next work must close four honest gates:
 
-1. The public release still lacks a preserved live Demo-Target PR receipt and final demo video.
+1. The public release still lacks the final demo video; the live Demo-Target receipt is preserved.
 2. The gVisor worker and live abuse tests exist, but the free Render web service still uses the
    restricted local path; genuinely untrusted programs require a separately deployed runsc worker.
 3. The frozen real-corpus selection is not yet a performance result. Stdin/stdout invocation,
@@ -173,7 +208,7 @@ Do not work on two levels at once when the earlier level's proof is incomplete.
 
 | Level | Current state | Next concrete move | Exit evidence |
 | --- | --- | --- | --- |
-| 0. Release proof | Public app/repo exist; receipt and video missing. | Run the deployed two-repository flow against Demo-Target. | Public draft PR, passing target CI, read-back receipt, video, and passing submission guard. |
+| 0. Release proof | Public app/repo and live receipt exist; video missing. | Record and publish the exact verified flow. | Public video, captions, logged-out link check, and passing submission guard. |
 | 1. Safe execution | Gateway, runc/runsc adapters, receipts, worker, and live abuse CI shipped. | Deploy the worker on a runsc-capable host and replay the full hostile corpus there. | No student code in the API process; deployed runtime-pinned receipts for every execution. |
 | 2. Trustworthy truth | Consensus `OracleDecision`, abstention, provenance, UI, and audit shipped. | Add reference/property/fixture adapters and versioned stdin/stdout invocation. | Shared-bug and nondeterministic cases abstain; every displayed output links to evidence. |
 | 3. Real evidence | Frozen 20-task/500-wrong manifest, exclusions, leakage boundary, scorer, and CI verifier shipped. | Runtime-validate labels, seal baseline files, and obtain second-review signoff. | Replayable scored results with hashes, uncertainty, costs, and human signoff. |
@@ -187,25 +222,22 @@ Do not work on two levels at once when the earlier level's proof is incomplete.
 Perform these tasks in order. Each task should produce a link or committed artifact, not only a
 verbal claim.
 
-1. **Create the live GitHub receipt.** Import the seeded triangle manifest with the Demo-Target
-   destination shown above, run analysis on the public deployment, review the minimized case and
-   exact pytest, approve it, and apply it. Confirm the UI ends in `verified` with a GitHub PR URL and
-   `read_back_verified: true` in the persisted receipt.
-2. **Verify the second repository independently.** Open the draft PR while logged out, check that it
-   changes only one file below `tests/coursefuzz/`, confirm its base is Demo-Target `main`, and wait
-   for the Demo-Target pytest workflow to pass. Preserve the PR URL and Actions URL.
-3. **Commit the external evidence.** Set `live_github_receipt_url` in `release_manifest.json`. Add
-   only a concise receipt reference to the README; do not paste credentials, student data, or a
-   mutable dashboard-only link.
+1. **Live GitHub receipt — complete.** Demo Target draft PR #1 changes one generated file below
+   `tests/coursefuzz/`, targets `main`, passed the target pytest workflow, and matches the persisted
+   read-back SHA-256.
+2. **Automatic CI closure — complete.** The frontend exposes `external_ci_pending`, polls the
+   bounded server-side verifier, and visibly advances only after the target checks pass.
+3. **External evidence — complete.** `release_manifest.json` and the README point to the canonical
+   public PR; no credential or student data is committed.
 4. **Record the demo.** Follow `docs/DEMO_RUNBOOK.md`, keep the recording between 2:50 and 2:55,
    include burned and platform captions, show the actual approval-to-PR transition, test it muted
    and on a phone, and publish the stable video URL.
 5. **Close the release gate.** Set `video_url`, change the manifest status to `submission-ready`, run
    `python scripts/release_guard.py --submission`, run the complete CI suite, and verify the public
    app, repository, video, and PR links from a clean logged-out environment.
-6. **Freeze and tag.** Stop risky feature work, create the demo release tag only from the exact green
-   deployed commit, record the Render commit receipt, and allow only verified P0 fixes or submission
-   artifact corrections afterward.
+6. **Preserve Round 1; ship Round 2.** The exact Round-1 commit is tagged
+   `build-week-round1-2026-07-21`. Round-2 work is unfrozen, but every release still needs green CI,
+   an exact deployed commit receipt, and a replayed golden path.
 
 Level 0 is blocked if the PR is mocked, the generated file differs from the approved payload, target
 CI is red, any public link requires the owner's session, or the video hides a failed/retried action.
