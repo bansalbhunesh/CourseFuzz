@@ -1,10 +1,11 @@
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from coursefuzz.data.demo import TRIANGLE_ASSIGNMENT
 from coursefuzz.main import create_app
-from coursefuzz.security.access import AccessPolicy
+from coursefuzz.security.access import JUDGE_TENANT, AccessPolicy
 
 ALPHA_TOKEN = "alpha-opaque-token-at-least-24-characters"
 BETA_TOKEN = "beta-opaque-token-at-least-24-characters"
@@ -141,3 +142,30 @@ def test_browser_session_uses_an_httponly_cookie(
     signed_out = client.delete("/api/session")
     assert signed_out.status_code == 204
     assert client.get("/api/assignments").status_code == 401
+
+
+def test_independent_judge_credential_does_not_replace_owner_keys(
+    monkeypatch,
+) -> None:
+    judge_token = "judge-review-token-at-least-24-characters"
+    monkeypatch.setenv("COURSEFUZZ_ACCESS_KEYS_JSON", f'{{"alpha":"{ALPHA_TOKEN}"}}')
+    monkeypatch.setenv("COURSEFUZZ_JUDGE_ACCESS_TOKEN", judge_token)
+
+    policy = AccessPolicy.from_env()
+
+    assert policy.authenticate(f"Bearer {ALPHA_TOKEN}").tenant_id == "alpha"
+    assert policy.authenticate(f"Bearer {judge_token}").tenant_id == JUDGE_TENANT
+
+
+def test_conflicting_judge_tenant_configuration_fails_closed(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "COURSEFUZZ_ACCESS_KEYS_JSON",
+        '{"judge-review":"one-judge-token-at-least-24-characters"}',
+    )
+    monkeypatch.setenv(
+        "COURSEFUZZ_JUDGE_ACCESS_TOKEN",
+        "different-judge-token-at-least-24-characters",
+    )
+
+    with pytest.raises(ValueError, match="configured differently"):
+        AccessPolicy.from_env()

@@ -32,6 +32,8 @@ initial Blueprint setup, provide these secret values:
 
 - `COURSEFUZZ_ACCESS_KEYS_JSON`: for example, a JSON map containing a random 24-plus-character
   judge credential.
+- `COURSEFUZZ_JUDGE_ACCESS_TOKEN`: optional independent credential for the fixed `judge-review`
+  tenant. It is merged in memory and never rotates or exposes the owner tenant-key map.
 - `COURSEFUZZ_GITHUB_TOKEN`: a fine-grained token scoped only to the dedicated demo target.
 - `COURSEFUZZ_GITHUB_ALLOWED_REPOS`: the single `owner/repository` demo target (or a tightly
   reviewed comma-separated allowlist).

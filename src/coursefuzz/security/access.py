@@ -10,6 +10,7 @@ from typing import Final
 LOCAL_TENANT: Final = "local-demo"
 GLOBAL_TENANT: Final = "*"
 SESSION_COOKIE: Final = "coursefuzz_session"
+JUDGE_TENANT: Final = "judge-review"
 _TENANT_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}$")
 
 
@@ -41,19 +42,31 @@ class AccessPolicy:
     @classmethod
     def from_env(cls) -> AccessPolicy:
         raw = os.getenv("COURSEFUZZ_ACCESS_KEYS_JSON", "").strip()
-        if not raw:
-            return cls()
-        try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise ValueError("COURSEFUZZ_ACCESS_KEYS_JSON must be valid JSON") from exc
-        if not isinstance(parsed, dict) or not all(
-            isinstance(key, str) and isinstance(value, str) for key, value in parsed.items()
-        ):
-            raise ValueError(
-                "COURSEFUZZ_ACCESS_KEYS_JSON must map tenant IDs to opaque tokens"
-            )
-        return cls(parsed)
+        if raw:
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise ValueError("COURSEFUZZ_ACCESS_KEYS_JSON must be valid JSON") from exc
+            if not isinstance(parsed, dict) or not all(
+                isinstance(key, str) and isinstance(value, str)
+                for key, value in parsed.items()
+            ):
+                raise ValueError(
+                    "COURSEFUZZ_ACCESS_KEYS_JSON must map tenant IDs to opaque tokens"
+                )
+            tenant_tokens = dict(parsed)
+        else:
+            tenant_tokens = {}
+
+        judge_token = os.getenv("COURSEFUZZ_JUDGE_ACCESS_TOKEN", "").strip()
+        if judge_token:
+            existing = tenant_tokens.get(JUDGE_TENANT)
+            if existing is not None and not hmac.compare_digest(existing, judge_token):
+                raise ValueError(
+                    f"{JUDGE_TENANT!r} is configured differently in the access-key map"
+                )
+            tenant_tokens[JUDGE_TENANT] = judge_token
+        return cls(tenant_tokens)
 
     @property
     def required(self) -> bool:

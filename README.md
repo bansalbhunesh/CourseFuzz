@@ -138,8 +138,10 @@ docker run --rm -p 8000:8000 coursefuzz
   proof. GPT-5.6 is the bounded hypothesis proposer inside the product; execution and independent
   oracles, never model confidence, decide correctness.
 - Fastest judge path: use the seeded assignment locally with no API key, or open the hosted beta
-  with the supplied judge credential. For a real external write, use the documented dedicated
-  Demo Target; CourseFuzz creates a draft PR and never merges target `main`.
+  with the credential supplied privately in the submission test instructions. The independent
+  `judge-review` credential does not rotate or reveal owner tenant keys. For a real external write,
+  use the documented dedicated Demo Target; CourseFuzz creates a draft PR and never merges target
+  `main`.
 - Supported platforms: Docker on Linux/macOS/Windows, or Python 3.11+ with Node.js 22+ for local
   development. The production container is Linux/amd64.
 
