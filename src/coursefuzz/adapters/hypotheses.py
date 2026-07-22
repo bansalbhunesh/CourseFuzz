@@ -136,10 +136,19 @@ class DeterministicHypothesisProvider(HypothesisProvider):
 class OpenAIHypothesisProvider(HypothesisProvider):
     mode = "live-gpt-5.6"
 
-    def __init__(self, model: str | None = None) -> None:
+    def __init__(
+        self,
+        model: str | None = None,
+        *,
+        timeout_seconds: float = 12.0,
+    ) -> None:
         from openai import OpenAI
 
-        self.client = OpenAI(timeout=20.0, max_retries=1)
+        # The engine owns a 30-second end-to-end deadline. Keep the optional model call well
+        # inside that budget so a timeout can still fall back to deterministic hypotheses and
+        # leave enough time for the execution oracle. Retrying here would consume the oracle's
+        # budget; a fresh user run is the explicit retry boundary.
+        self.client = OpenAI(timeout=timeout_seconds, max_retries=0)
         self.model = model or os.getenv("COURSEFUZZ_MODEL", "gpt-5.6-sol")
 
     def propose(

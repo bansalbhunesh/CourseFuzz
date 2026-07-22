@@ -10,8 +10,9 @@
   approved reauthorization boundary instead of guessing whether an action completed.
 - A fresh isolated Python process, `-I` mode, restricted AST allowlist, no built-ins, 16 KiB
   source limit, 1 MB output limit, and a 1.5-second total execution deadline.
-- One bounded GPT-5.6 request with structured output, 1,400 maximum output tokens, a 20-second
-  client deadline, one retry, `store=False`, and a non-PII safety identifier.
+- One bounded GPT-5.6 request with structured output, 1,400 maximum output tokens, a 12-second
+  client deadline, no hidden retry, `store=False`, and a non-PII safety identifier. A timeout uses
+  deterministic hypotheses while preserving enough of the 30-second engine budget for proof.
 - A 30-second total engine deadline shared across baseline execution, hypothesis verification,
   minimization, and the projected regression run.
 - Deterministic fallback if GPT-5.6 is unavailable or refuses/malforms its output.

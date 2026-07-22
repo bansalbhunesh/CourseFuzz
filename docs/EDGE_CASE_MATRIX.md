@@ -4,7 +4,7 @@ Status: `covered`, `bounded`, or `release blocker`.
 
 | Case | Expected behavior | Evidence | Status |
 |---|---|---|---|
-| Model quota/latency | One retry, 20 s deadline, then deterministic hypotheses | provider contract | bounded |
+| Model quota/latency | One 12 s attempt, then deterministic hypotheses inside the 30 s engine deadline; failed runs expose an explicit retry | provider contract + production web build | covered |
 | Partial model failure/refusal | No partial payload reaches execution; use deterministic fallback | structured output + fallback | bounded |
 | Duplicate create request | Same idempotency key returns the original run | API golden-path test | covered |
 | Concurrent/duplicate apply | Atomically consume one exact approval and allow one apply claimant | SQLite service race + Postgres repository race | covered |

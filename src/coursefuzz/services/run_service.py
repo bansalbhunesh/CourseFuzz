@@ -162,7 +162,20 @@ class RunService:
                 "Attack hypotheses generated; expected outputs remain unknown to the model.",
                 {
                     "count": len(analysis.hypothesis_verdicts),
-                    "provider": self.mode,
+                    # Report the provider that actually produced this run's hypotheses. The
+                    # configured mode can be live while a bounded model timeout correctly uses
+                    # the deterministic fallback.
+                    "provider": next(
+                        iter(
+                            sorted(
+                                {
+                                    verdict.hypothesis.provider
+                                    for verdict in analysis.hypothesis_verdicts
+                                }
+                            )
+                        ),
+                        self.mode,
+                    ),
                 },
             )
             if analysis.candidate:
