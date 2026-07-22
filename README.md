@@ -9,9 +9,11 @@ product minimizes a real counterexample, shows the exact pytest patch, requires 
 approval, writes locally or opens a draft GitHub pull request, reads it back, and reruns the
 entire misconception corpus.
 
-> Status: [public beta on Render](https://coursefuzz.onrender.com) plus a reproducible local
-> vertical slice. The demo video and live GitHub write receipt are not yet published, so this
-> repository should not be presented as submission-ready.
+> Status: Round 2 product development is active. The [public beta](https://coursefuzz.onrender.com)
+> and [live two-repository receipt](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/1)
+> prove the full approval → draft PR → target CI → read-back loop. The final public video is the
+> only remaining submission-evidence field; production-scale onboarding and isolation are tracked
+> honestly below.
 
 ## The 90-second golden path
 
@@ -101,8 +103,8 @@ Set-Location web
 npm run build
 ```
 
-`scripts/release_guard.py --submission` intentionally fails until the public app, video, and live
-GitHub receipt are recorded in `release_manifest.json`; missing proof cannot be silently shipped.
+`scripts/release_guard.py --submission` intentionally fails until the final public video is
+recorded in `release_manifest.json`; missing proof cannot be silently shipped.
 
 The container serves the compiled frontend and API as one process:
 
@@ -123,6 +125,21 @@ docker run --rm -p 8000:8000 coursefuzz
 - [Deepening plan](docs/NEXT_STEPS.md) — gated roadmap from public proof to safe real-course use
 - [Design context](.impeccable.md) — audience, brand, visual direction, and accessibility rules
 
+## Build provenance and judge test path
+
+- Category: **Education**. CourseFuzz is testing infrastructure, but its primary user and measured
+  outcome are educational: instructors prevent unfair grading before an assignment is released.
+- Primary Codex task/session: `019f81bc-f456-7942-a294-bdee1da775cb`.
+- Codex accelerated repository audit, typed contract design, adversarial tests, frontend state
+  closure, browser verification, CI/release checks, deployment diagnosis, and the two-repository
+  proof. GPT-5.6 is the bounded hypothesis proposer inside the product; execution and independent
+  oracles, never model confidence, decide correctness.
+- Fastest judge path: use the seeded assignment locally with no API key, or open the hosted beta
+  with the supplied judge credential. For a real external write, use the documented dedicated
+  Demo Target; CourseFuzz creates a draft PR and never merges target `main`.
+- Supported platforms: Docker on Linux/macOS/Windows, or Python 3.11+ with Node.js 22+ for local
+  development. The production container is Linux/amd64.
+
 ## Current limitations
 
 Opaque-key authentication and tenant isolation are implemented for the single-instance slice;
@@ -131,9 +148,8 @@ benchmark yet. A no-network container backend (gVisor `runsc`) implements the ex
 is exercised in CI, but the restricted local runner is still the default analysis path and running
 genuinely untrusted code additionally needs the stdin/stdout adapter, a deployed runsc worker,
 signed job/receipt transport, and pinned image provenance.
-GitHub delivery is implemented and contract-tested
-with a deterministic fake transport, but still needs logged-out proof against a dedicated live
-repository. Hosted Postgres is single-instance demo persistence, and its free
+GitHub delivery is implemented, contract-tested, and proven by a public draft pull request whose
+target-repository checks passed. Hosted Postgres is single-instance demo persistence, and its free
 Render instance expires after 30 days without backups. Synthetic and fallback behavior is visibly
 labelled.
 

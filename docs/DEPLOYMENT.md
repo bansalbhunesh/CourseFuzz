@@ -73,10 +73,11 @@ gate rendered successfully and `/api/health` returned HTTP 200 with `storage: po
 [main CI run](https://github.com/bansalbhunesh/CourseFuzz/actions/runs/29877846875) passed the backend,
 frontend, production-container, frozen-benchmark, and live runc/runsc isolation jobs.
 
-This is deployment evidence, not submission closure. The release manifest intentionally remains in
-`development`: no live CourseFuzz-created draft-PR/read-back receipt or demo video has been recorded
-yet. The authenticated deployed golden path must still be run against the dedicated Demo Target,
-and its exact external receipt must be persisted before calling the project submission-ready.
+This is deployment evidence, not final video closure. The release manifest is now
+`round-2-active`: the CourseFuzz-created [Demo Target draft PR
+#1](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/1) preserves the external write,
+byte read-back, and passing target-CI receipt. The final public demo video is still required before
+the manifest can become `submission-ready`.
 
 The restricted AST runner remains a demonstration boundary even inside this container. A public
 service that accepts hostile submissions still requires one no-network microVM or hardened

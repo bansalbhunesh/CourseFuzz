@@ -8,6 +8,8 @@ type RunStatus =
   | "approval_required"
   | "approved"
   | "applying"
+  | "external_ci_pending"
+  | "external_ci_failed"
   | "verified"
   | "no_action_required"
   | "failed";
@@ -163,6 +165,8 @@ const statusOrder: Record<RunStatus, number> = {
   approval_required: 2,
   approved: 3,
   applying: 3,
+  external_ci_pending: 4,
+  external_ci_failed: 4,
   verified: 4,
   no_action_required: 2,
   failed: 4,
@@ -297,6 +301,9 @@ export function App() {
       "patch.applying",
       "patch.verified",
       "patch.failed",
+      "external_ci.pending",
+      "external_ci.verified",
+      "external_ci.failed",
       "run.failed",
     ];
     names.forEach((name) => source.addEventListener(name, receive as EventListener));
@@ -309,6 +316,33 @@ export function App() {
       api<Run>(`/api/runs/${run.id}`).then(setRun).catch(() => setError("Live trace disconnected. Retry the run status."));
     };
     return () => source.close();
+  }, [run?.id, run?.status]);
+
+  useEffect(() => {
+    if (!run || run.status !== "external_ci_pending") return;
+
+    let cancelled = false;
+    let timer: number | undefined;
+    const poll = async () => {
+      try {
+        const next = await api<Run>(`/api/runs/${run.id}/external-ci`, { method: "POST" });
+        if (cancelled) return;
+        setRun(next);
+        if (next.status === "external_ci_pending") {
+          timer = window.setTimeout(() => void poll(), 2_000);
+        }
+      } catch (reason) {
+        if (cancelled) return;
+        setError(reason instanceof Error ? reason.message : "Could not read the target CI status.");
+        timer = window.setTimeout(() => void poll(), 4_000);
+      }
+    };
+
+    timer = window.setTimeout(() => void poll(), 1_000);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, [run?.id, run?.status]);
 
   const activeStep = run ? statusOrder[run.status] : -1;
@@ -489,7 +523,7 @@ export function App() {
             <select
               value={demo?.id ?? ""}
               onChange={(event) => void selectAssignment(event.target.value)}
-              disabled={busy || Boolean(run && ["queued", "analyzing", "applying"].includes(run.status))}
+              disabled={busy || Boolean(run && ["queued", "analyzing", "applying", "external_ci_pending"].includes(run.status))}
             >
               {assignments.map((assignment) => (
                 <option value={assignment.id} key={assignment.id}>{assignment.title}</option>
@@ -716,6 +750,26 @@ export function App() {
             {run?.status === "applying" && (
               <><h2>Reading back the destination…</h2><p>The result is not complete until the written bytes and full rerun agree.</p></>
             )}
+            {run?.status === "external_ci_pending" && (
+              <div className="verified-result pending">
+                <span className="verified-check" aria-hidden="true">…</span>
+                <h2>Draft PR opened. Read back. Awaiting target CI.</h2>
+                <p>The approved bytes already match the destination. CourseFuzz is now reading the target repository's own checks before it can call the action verified.</p>
+                {run.action_receipt?.external_url && (
+                  <a className="download-link" href={run.action_receipt.external_url} target="_blank" rel="noreferrer">Open pending draft pull request <span aria-hidden="true">↗</span></a>
+                )}
+              </div>
+            )}
+            {run?.status === "external_ci_failed" && (
+              <div className="verified-result abstained">
+                <span className="verified-check" aria-hidden="true">!</span>
+                <h2>Target CI did not pass.</h2>
+                <p>{run.error ?? "The external action remains unverified. Inspect the target checks before retrying."}</p>
+                {run.action_receipt?.external_url && (
+                  <a className="download-link" href={run.action_receipt.external_url} target="_blank" rel="noreferrer">Inspect draft pull request <span aria-hidden="true">↗</span></a>
+                )}
+              </div>
+            )}
             {run?.status === "verified" && (
               <div className="verified-result">
                 <span className="verified-check" aria-hidden="true">✓</span>
@@ -734,7 +788,7 @@ export function App() {
           <div className="trace-block">
             <div className="trace-title">
               <div><span className="section-number">AUDIT TRAIL</span><h2 id="trace-heading">Run evidence</h2></div>
-              {run && <span className="live-indicator"><i aria-hidden="true" />{["queued", "analyzing", "applying"].includes(run.status) ? "live" : "persisted"}</span>}
+              {run && <span className="live-indicator"><i aria-hidden="true" />{["queued", "analyzing", "applying", "external_ci_pending"].includes(run.status) ? "live" : "persisted"}</span>}
               {run && <a className="evidence-download" href={`/api/runs/${run.id}/evidence`}>Evidence bundle <span aria-hidden="true">↓</span></a>}
             </div>
             {events.length === 0 ? (
