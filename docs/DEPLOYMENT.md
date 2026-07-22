@@ -94,12 +94,25 @@ its own repository by installing the CourseFuzz GitHub App. Set the App's webhoo
   may write only to repositories inside the installation it has bound, and only while that
   installation is active. The static demo/judge map keeps working unchanged underneath.
 
-Binding a workspace to an installation (`POST /api/github/installations/claim`) is **disabled by
-default** (`COURSEFUZZ_ENABLE_SELF_SERVE_CLAIM=0`). Binding by raw installation ID is only safe once
-the caller's GitHub identity is verified through OAuth; until that ships, production keeps the claim
-off and relies on the verified static map for the demo target. When enabled in a controlled
-environment, claiming is first-claim-wins: an installation already owned by another workspace cannot
-be re-claimed.
+Binding a workspace to an installation over `POST /api/github/installations/claim` (raw, unverified)
+is **disabled by default** (`COURSEFUZZ_ENABLE_SELF_SERVE_CLAIM=0`) because binding by raw
+installation ID is guessable. When enabled in a controlled environment, claiming is
+first-claim-wins: an installation already owned by another workspace cannot be re-claimed.
+
+The safe, always-on binding path is **GitHub OAuth identity verification**. Register a GitHub OAuth
+app (or the App's user-authorization flow) and set `COURSEFUZZ_GITHUB_OAUTH_CLIENT_ID`,
+`COURSEFUZZ_GITHUB_OAUTH_CLIENT_SECRET`, and `COURSEFUZZ_GITHUB_OAUTH_REDIRECT_URI` (ending in
+`/api/github/callback`). Then:
+
+- `GET /api/github/login?installation_id=<id>` (authenticated) redirects the workspace to GitHub,
+  carrying the tenant and target installation in a `state` value signed with the OAuth client secret
+  (the SameSite-strict session cookie does not survive the return redirect, so the signed state — not
+  the cookie — carries identity back).
+- `GET /api/github/callback` exchanges the code for a user token, reads the user's own
+  `/user/installations`, and binds the workspace **only if** the installation ID from the signed
+  state is one the user actually owns and it exists in the store. The browser is redirected to
+  `/?github=connected`, `denied`, `conflict`, or `error`. No feature flag is needed because ownership
+  is proven, not asserted.
 
 ## Current evidence and blocker
 

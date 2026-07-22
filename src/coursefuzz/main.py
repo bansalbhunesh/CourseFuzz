@@ -21,6 +21,7 @@ from coursefuzz.repositories.postgres import PostgresRunRepository
 from coursefuzz.repositories.sqlite import RunRepository
 from coursefuzz.security.access import AccessPolicy
 from coursefuzz.security.github_app import build_credential_provider
+from coursefuzz.security.github_oauth import GitHubOAuthClient
 from coursefuzz.security.installations import build_installation_store
 from coursefuzz.services.assignment_service import AssignmentService
 from coursefuzz.services.run_service import RunService
@@ -79,6 +80,7 @@ def create_app(
     app.state.assignment_service = assignment_service
     app.state.access_policy = access
     app.state.installation_store = installation_store
+    oauth_client = GitHubOAuthClient.from_env()
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -91,7 +93,9 @@ def create_app(
             "Last-Event-ID",
         ],
     )
-    app.include_router(build_router(service, assignment_service, access, installation_store))
+    app.include_router(
+        build_router(service, assignment_service, access, installation_store, oauth_client)
+    )
 
     default_web_dist = Path(__file__).resolve().parents[2] / "web" / "dist"
     web_dist = Path(os.getenv("COURSEFUZZ_WEB_DIST", default_web_dist)).resolve()

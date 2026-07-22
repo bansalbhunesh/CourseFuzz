@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import secrets
+import time
 from collections.abc import AsyncIterator
 from uuid import uuid4
 
@@ -16,7 +18,7 @@ from fastapi import (
     Response,
     status,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from coursefuzz.domain.models import (
@@ -31,6 +33,7 @@ from coursefuzz.domain.models import (
     RunView,
 )
 from coursefuzz.security.access import SESSION_COOKIE, AccessPolicy, Principal
+from coursefuzz.security.github_oauth import GitHubOAuthClient, sign_state, verify_state
 from coursefuzz.security.installations import InstallationStore, apply_installation_event
 from coursefuzz.security.webhooks import (
     DELIVERY_HEADER,
@@ -65,10 +68,17 @@ def build_router(
     assignments: AssignmentService,
     access: AccessPolicy,
     installation_store: InstallationStore | None = None,
+    oauth_client: GitHubOAuthClient | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api")
     webhook_secret = os.getenv("COURSEFUZZ_GITHUB_WEBHOOK_SECRET", "").strip()
     self_serve_claim_enabled = os.getenv("COURSEFUZZ_ENABLE_SELF_SERVE_CLAIM", "0") == "1"
+    oauth_redirect_uri = os.getenv("COURSEFUZZ_GITHUB_OAUTH_REDIRECT_URI", "").strip()
+
+    def _callback_redirect_uri(request: Request) -> str:
+        if oauth_redirect_uri:
+            return oauth_redirect_uri
+        return f"{str(request.base_url).rstrip('/')}/api/github/callback"
 
     def current_principal(request: Request) -> Principal:
         try:
@@ -415,5 +425,66 @@ def build_router(
             "installation_id": payload.installation_id,
             "repositories": installation_store.repositories_for_workspace(principal.tenant_id),
         }
+
+    @router.get("/github/login")
+    def github_login(
+        installation_id: int,
+        request: Request,
+        principal: Principal = principal_dependency,
+    ) -> RedirectResponse:
+        """Begin GitHub OAuth to verify the caller owns ``installation_id`` before binding it.
+
+        The tenant and target installation are carried in a signed ``state`` (HMAC over the OAuth
+        client secret) so the callback — which the SameSite-strict session cookie cannot reach after
+        a redirect from github.com — can still trust who initiated the flow.
+        """
+
+        if oauth_client is None:
+            raise HTTPException(status_code=503, detail="GitHub OAuth is not configured")
+        state = sign_state(
+            {
+                "tenant_id": principal.tenant_id,
+                "installation_id": installation_id,
+                "nonce": secrets.token_urlsafe(16),
+                "iat": int(time.time()),
+            },
+            oauth_client.state_secret,
+        )
+        target = oauth_client.authorize_url(
+            state=state, redirect_uri=_callback_redirect_uri(request)
+        )
+        return RedirectResponse(target, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+    @router.get("/github/callback")
+    def github_callback(request: Request, code: str = "", state: str = "") -> RedirectResponse:
+        """Complete GitHub OAuth: bind the workspace only if the user owns the installation.
+
+        The binding is safe without a feature flag because ownership is proven — the installation ID
+        from the signed state must appear in the user's own ``/user/installations`` list.
+        """
+
+        if oauth_client is None or installation_store is None:
+            raise HTTPException(status_code=503, detail="GitHub OAuth is not configured")
+        payload = verify_state(state, oauth_client.state_secret)
+        if payload is None or not code:
+            return RedirectResponse("/?github=error", status_code=status.HTTP_303_SEE_OTHER)
+        tenant_id = payload.get("tenant_id")
+        installation_id = payload.get("installation_id")
+        if not isinstance(tenant_id, str) or not isinstance(installation_id, int):
+            return RedirectResponse("/?github=error", status_code=status.HTTP_303_SEE_OTHER)
+        try:
+            user_token = oauth_client.exchange_code(
+                code=code, redirect_uri=_callback_redirect_uri(request)
+            )
+            owned = oauth_client.user_installation_ids(user_token)
+        except RuntimeError:
+            return RedirectResponse("/?github=error", status_code=status.HTTP_303_SEE_OTHER)
+        if installation_id not in owned or not installation_store.installation_exists(
+            installation_id
+        ):
+            return RedirectResponse("/?github=denied", status_code=status.HTTP_303_SEE_OTHER)
+        if not installation_store.claim_installation(tenant_id, installation_id):
+            return RedirectResponse("/?github=conflict", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse("/?github=connected", status_code=status.HTTP_303_SEE_OTHER)
 
     return router
