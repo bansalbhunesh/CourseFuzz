@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import sys
+import threading
+import time
 import types
 
 from coursefuzz.adapters.hypotheses import (
     DeterministicHypothesisProvider,
+    HypothesisBatch,
     HypothesisContext,
     HypothesisProvider,
+    ModelHypothesis,
     OpenAIHypothesisProvider,
     ResilientHypothesisProvider,
     SurvivorHint,
@@ -19,6 +23,18 @@ class _UnavailableProvider(HypothesisProvider):
     def propose(self, context, survivors):  # type: ignore[override]
         del context, survivors
         raise TimeoutError("model deadline")
+
+
+class _BlockingProvider(HypothesisProvider):
+    mode = "live-gpt-5.6"
+
+    def __init__(self, release: threading.Event) -> None:
+        self.release = release
+
+    def propose(self, context, survivors):  # type: ignore[override]
+        del context, survivors
+        self.release.wait(timeout=1.0)
+        return ()
 
 
 def _context() -> HypothesisContext:
@@ -47,6 +63,28 @@ def test_timeout_uses_attributed_deterministic_fallback() -> None:
     assert {item.provider for item in hypotheses} == {"deterministic-fallback"}
 
 
+def test_wall_timeout_returns_fallback_without_waiting_for_network_unwind() -> None:
+    release = threading.Event()
+    provider = ResilientHypothesisProvider(
+        _BlockingProvider(release),
+        DeterministicHypothesisProvider(),
+        primary_wall_seconds=0.01,
+        max_concurrent_primary_calls=1,
+    )
+
+    started = time.monotonic()
+    hypotheses = provider.propose(
+        _context(),
+        (SurvivorHint(id="wrong", misconception="misses a boundary"),),
+    )
+    elapsed = time.monotonic() - started
+    release.set()
+
+    assert elapsed < 0.2
+    assert hypotheses
+    assert {item.provider for item in hypotheses} == {"deterministic-fallback"}
+
+
 def test_openai_request_cannot_consume_the_oracle_deadline(
     monkeypatch,
 ) -> None:
@@ -61,3 +99,34 @@ def test_openai_request_cannot_consume_the_oracle_deadline(
     OpenAIHypothesisProvider()
 
     assert captured == {"timeout": 12.0, "max_retries": 0}
+
+
+def test_openai_hypothesis_step_uses_low_reasoning_effort() -> None:
+    captured: dict[str, object] = {}
+
+    class _FakeResponses:
+        def parse(self, **kwargs):
+            captured.update(kwargs)
+            return types.SimpleNamespace(
+                output_parsed=HypothesisBatch(
+                    hypotheses=[
+                        ModelHypothesis(
+                            inputs=(1,),
+                            rationale="Probe the untested boundary.",
+                            misconception="Misses a boundary.",
+                        )
+                    ]
+                )
+            )
+
+    provider = object.__new__(OpenAIHypothesisProvider)
+    provider.client = types.SimpleNamespace(responses=_FakeResponses())
+    provider.model = "gpt-5.6-sol"
+
+    hypotheses = provider.propose(
+        _context(),
+        (SurvivorHint(id="wrong", misconception="misses a boundary"),),
+    )
+
+    assert hypotheses[0].provider == "gpt-5.6"
+    assert captured["reasoning"] == {"effort": "low"}
