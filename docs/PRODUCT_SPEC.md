@@ -61,7 +61,7 @@ assignment edits cannot silently change historical evidence.
   operations for broad production use.
 
 The public deployment and dedicated live GitHub integration proof are complete. The canonical
-receipt is [Demo Target draft PR #1](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/1):
+receipt is [Demo Target draft PR #3](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/3):
 the generated file was read back byte-for-byte and the target repository's own CI passed before
 CourseFuzz marked the run verified.
 
