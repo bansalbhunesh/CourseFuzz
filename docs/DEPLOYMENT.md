@@ -77,6 +77,30 @@ The App configuration is fail-closed: supplying only one or two values prevents 
 mode is active, `/api/health` reports `github_auth: github-app`; it never returns installation IDs,
 tokens, or private-key material. The static beta path reports `static-token`.
 
+### Self-serve repository onboarding (signed installation callbacks)
+
+Instead of an operator hand-editing `COURSEFUZZ_GITHUB_INSTALLATIONS_JSON`, a workspace can onboard
+its own repository by installing the CourseFuzz GitHub App. Set the App's webhook secret as
+`COURSEFUZZ_GITHUB_WEBHOOK_SECRET` and point the App's webhook URL at `POST /api/github/webhook`.
+
+- The endpoint verifies the `X-Hub-Signature-256` HMAC before doing anything (fail-closed on a
+  missing secret, missing store, or bad signature), deduplicates by `X-GitHub-Delivery` so a
+  redelivery never applies twice, and persists `installation` / `installation_repositories` events
+  into the durable store (the same SQLite/Postgres database as runs). Created and unsuspend events
+  replace the installation's repository set; added/removed adjust it; suspend and deleted revoke it.
+- `GET /api/github/repositories` (authenticated) returns the repositories the caller's workspace has
+  onboarded — the data a repository picker renders. It is read-only and tenant-scoped.
+- Token minting is dynamic: `StoredGitHubCredentialProvider` layers over the static map, so a tenant
+  may write only to repositories inside the installation it has bound, and only while that
+  installation is active. The static demo/judge map keeps working unchanged underneath.
+
+Binding a workspace to an installation (`POST /api/github/installations/claim`) is **disabled by
+default** (`COURSEFUZZ_ENABLE_SELF_SERVE_CLAIM=0`). Binding by raw installation ID is only safe once
+the caller's GitHub identity is verified through OAuth; until that ships, production keeps the claim
+off and relies on the verified static map for the demo target. When enabled in a controlled
+environment, claiming is first-claim-wins: an installation already owned by another workspace cannot
+be re-claimed.
+
 ## Current evidence and blocker
 
 The public demo is live at <https://coursefuzz.onrender.com>. On 2026-07-22, the logged-out browser

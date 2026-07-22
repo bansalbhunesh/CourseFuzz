@@ -31,6 +31,14 @@ from coursefuzz.domain.models import (
     RunView,
 )
 from coursefuzz.security.access import SESSION_COOKIE, AccessPolicy, Principal
+from coursefuzz.security.installations import InstallationStore, apply_installation_event
+from coursefuzz.security.webhooks import (
+    DELIVERY_HEADER,
+    EVENT_HEADER,
+    SIGNATURE_HEADER,
+    parse_installation_event,
+    verify_github_signature,
+)
 from coursefuzz.services.assignment_service import AssignmentService
 from coursefuzz.services.run_service import RunService
 
@@ -48,12 +56,19 @@ class SessionCreate(BaseModel):
     access_token: str = Field(min_length=1, max_length=512)
 
 
+class InstallationClaim(BaseModel):
+    installation_id: int = Field(gt=0)
+
+
 def build_router(
     service: RunService,
     assignments: AssignmentService,
     access: AccessPolicy,
+    installation_store: InstallationStore | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api")
+    webhook_secret = os.getenv("COURSEFUZZ_GITHUB_WEBHOOK_SECRET", "").strip()
+    self_serve_claim_enabled = os.getenv("COURSEFUZZ_ENABLE_SELF_SERVE_CLAIM", "0") == "1"
 
     def current_principal(request: Request) -> Principal:
         try:
@@ -330,5 +345,75 @@ def build_router(
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+    @router.post("/github/webhook", status_code=status.HTTP_202_ACCEPTED)
+    async def github_webhook(request: Request) -> dict[str, str]:
+        """Ingest signed GitHub App installation callbacks into the durable store.
+
+        Fail-closed: unconfigured secret/store -> 503, bad signature -> 401. Deliveries are
+        deduplicated by ``X-GitHub-Delivery`` so a redelivery never applies twice, and only the
+        installation lifecycle events we recognize mutate the store.
+        """
+
+        if installation_store is None or not webhook_secret:
+            raise HTTPException(status_code=503, detail="GitHub webhooks are not configured")
+        body = await request.body()
+        if not verify_github_signature(webhook_secret, body, request.headers.get(SIGNATURE_HEADER)):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+        delivery_id = request.headers.get(DELIVERY_HEADER)
+        if not delivery_id:
+            raise HTTPException(status_code=400, detail="Missing delivery identifier")
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail="Malformed webhook body") from exc
+        first_delivery = await asyncio.to_thread(installation_store.record_delivery, delivery_id)
+        if not first_delivery:
+            return {"status": "duplicate"}
+        event = parse_installation_event(request.headers.get(EVENT_HEADER, ""), payload)
+        if event is None:
+            return {"status": "ignored"}
+        await asyncio.to_thread(apply_installation_event, installation_store, event)
+        return {"status": "applied", "action": event.action}
+
+    @router.get("/github/repositories")
+    def github_repositories(principal: Principal = principal_dependency) -> dict:
+        """List the repositories the caller's workspace onboarded (repository picker data)."""
+
+        if installation_store is None:
+            return {"installation_id": None, "repositories": []}
+        installation_id = installation_store.installation_for_workspace(principal.tenant_id)
+        return {
+            "installation_id": installation_id,
+            "repositories": installation_store.repositories_for_workspace(principal.tenant_id),
+        }
+
+    @router.post("/github/installations/claim")
+    def github_claim(
+        payload: InstallationClaim,
+        principal: Principal = principal_dependency,
+    ) -> dict:
+        """Bind the authenticated workspace to a GitHub App installation (first-claim-wins).
+
+        Disabled by default: binding by raw installation ID is only safe once the caller's GitHub
+        identity is verified (OAuth), so production keeps this off until that check ships. When
+        enabled for controlled environments, an installation already owned by another workspace
+        cannot be re-claimed.
+        """
+
+        if installation_store is None or not self_serve_claim_enabled:
+            raise HTTPException(status_code=404, detail="Self-serve installation claim is disabled")
+        claimed = installation_store.claim_installation(
+            principal.tenant_id, payload.installation_id
+        )
+        if not claimed:
+            raise HTTPException(
+                status_code=409,
+                detail="Installation is unknown, suspended, or already bound to another workspace",
+            )
+        return {
+            "installation_id": payload.installation_id,
+            "repositories": installation_store.repositories_for_workspace(principal.tenant_id),
+        }
 
     return router

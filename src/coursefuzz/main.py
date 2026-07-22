@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from coursefuzz.adapters.destinations import DestinationCoordinator
+from coursefuzz.adapters.destinations import DestinationCoordinator, GitHubDestinationAdapter
 from coursefuzz.adapters.hypotheses import build_hypothesis_provider
 from coursefuzz.adapters.sandbox import SubprocessPythonSandbox
 from coursefuzz.api.routes import build_router
@@ -20,6 +20,8 @@ from coursefuzz.domain.engine import AssessmentEngine
 from coursefuzz.repositories.postgres import PostgresRunRepository
 from coursefuzz.repositories.sqlite import RunRepository
 from coursefuzz.security.access import AccessPolicy
+from coursefuzz.security.github_app import build_credential_provider
+from coursefuzz.security.installations import build_installation_store
 from coursefuzz.services.assignment_service import AssignmentService
 from coursefuzz.services.run_service import RunService
 
@@ -32,11 +34,9 @@ def create_app(
 ) -> FastAPI:
     provider = build_hypothesis_provider()
     database_url = os.getenv("DATABASE_URL") if database_path is None else None
-    repository = (
-        PostgresRunRepository(database_url)
-        if database_url
-        else RunRepository(database_path or os.getenv("COURSEFUZZ_DB_PATH", "coursefuzz.db"))
-    )
+    db_path = database_path or os.getenv("COURSEFUZZ_DB_PATH", "coursefuzz.db")
+    repository = PostgresRunRepository(database_url) if database_url else RunRepository(db_path)
+    installation_store = build_installation_store(database_url, db_path)
     sandbox = SubprocessPythonSandbox()
     assignment_service = AssignmentService(repository, sandbox)
     assignment_service.seed(TRIANGLE_ASSIGNMENT)
@@ -46,11 +46,19 @@ def create_app(
         provider,
         max_analysis_seconds=analysis_deadline_seconds(),
     )
+    artifact_directory = artifact_dir or os.getenv("COURSEFUZZ_ARTIFACT_DIR", "data/artifacts")
+    if destination_coordinator is None:
+        destination_coordinator = DestinationCoordinator(
+            artifact_directory,
+            github=GitHubDestinationAdapter(
+                credential_provider=build_credential_provider(installation_store)
+            ),
+        )
     service = RunService(
         repository,
         engine,
         assignment_service,
-        artifact_dir or os.getenv("COURSEFUZZ_ARTIFACT_DIR", "data/artifacts"),
+        artifact_directory,
         provider.mode,
         destination_coordinator,
     )
@@ -70,6 +78,7 @@ def create_app(
     app.state.run_service = service
     app.state.assignment_service = assignment_service
     app.state.access_policy = access
+    app.state.installation_store = installation_store
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -82,7 +91,7 @@ def create_app(
             "Last-Event-ID",
         ],
     )
-    app.include_router(build_router(service, assignment_service, access))
+    app.include_router(build_router(service, assignment_service, access, installation_store))
 
     default_web_dist = Path(__file__).resolve().parents[2] / "web" / "dist"
     web_dist = Path(os.getenv("COURSEFUZZ_WEB_DIST", default_web_dist)).resolve()

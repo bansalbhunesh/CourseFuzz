@@ -46,10 +46,15 @@ Build the product in four release trains, each independently deployable:
 
 The first Round-2 production branch implements the credential half of this boundary: exact
 repository-to-installation mapping, short-lived repository-scoped tokens, safe caching, visible
-health mode, and static-token compatibility. The next slice persists workspace memberships and App
-installations from signed callbacks, then exposes the repository picker. The existing
-`ExecutionGateway`, atomic approval claim, destination adapter, Postgres repository, and external-CI
-state machine are retained rather than rewritten.
+health mode, and static-token compatibility. The next slice — now shipped — persists App
+installations and workspace memberships from signed callbacks and exposes the repository listing:
+`POST /api/github/webhook` verifies `X-Hub-Signature-256`, deduplicates deliveries, and records
+installations in the durable store; `StoredGitHubCredentialProvider` mints per-tenant tokens for
+onboarded repositories; and `GET /api/github/repositories` returns the picker data. What remains is
+GitHub OAuth identity verification so the installation-claim binding can be safely enabled (it is
+off by default), followed by the picker UI. The existing `ExecutionGateway`, atomic approval claim,
+destination adapter, Postgres repository, and external-CI state machine are retained rather than
+rewritten.
 
 ## Current baseline
 
@@ -215,7 +220,7 @@ Do not work on two levels at once when the earlier level's proof is incomplete.
 | 2. Trustworthy truth | Consensus `OracleDecision`, abstention, provenance, UI, and audit shipped. | Add reference/property/fixture adapters and versioned stdin/stdout invocation. | Shared-bug and nondeterministic cases abstain; every displayed output links to evidence. |
 | 3. Real evidence | Frozen 20-task/500-wrong manifest, exclusions, leakage boundary, scorer, and CI verifier shipped. | Runtime-validate labels, seal baseline files, and obtain second-review signoff. | Replayable scored results with hashes, uncertainty, costs, and human signoff. |
 | 4. Better search | Shared budget, deduplication, provenance, batched verification, and maximum-coverage selection shipped. | Run equal-budget real-corpus ablations and add survivor-disagreement generation if needed. | Higher recall at equal cost, or equal recall with fewer executions, without more false kills. |
-| 5. Real instructor workflow | Repository-scoped App tokens plus target-CI read-back shipped; mapping is deployment-managed. | Persist signed App callbacks, workspace memberships, and repository selection. | Install, analyze, approve, verified draft PR, and recovery without copying tokens or JSON. |
+| 5. Real instructor workflow | Repository-scoped App tokens plus target-CI read-back shipped. Signed installation callbacks, a durable installation store, dynamic per-tenant token minting, and read-only repository listing now shipped; identity-verified binding is still pending. | Add GitHub OAuth identity verification to safely enable the installation claim, then expose the repository-picker UI. | Install, analyze, approve, verified draft PR, and recovery without copying tokens or JSON. |
 | 6. Durable service | Postgres persistence and atomic one-time apply claim shipped; single worker topology only. | Add migrations, transactional outbox, leases, immutable object storage, and restore drills. | Multi-instance chaos test and backup/restore exercise pass. |
 | 7. Validated product | Responsive evidence/approval UI exists; no instructor study yet. | Run five observed usability sessions on the evidence-to-approval flow. | Reviewed findings become measured product changes; keyboard, mobile, and AA gates pass. |
 
@@ -482,6 +487,11 @@ Exit gate:
 ## Milestone 5 — integrate one real instructor workflow deeply
 
 Purpose: eliminate manual manifest assembly while retaining the verified action loop.
+
+Status: **signed installation callbacks, durable installation store, per-tenant dynamic token
+minting, delivery deduplication, and read-only repository listing shipped; the identity-verified
+installation claim (OAuth) and repository-picker UI remain open.** Webhook delivery IDs are already
+persisted; the store survives restart in both SQLite and Postgres.
 
 Choose GitHub Classroom/repository workflows first because CourseFuzz already delivers a draft
 pull request. Replace deployer-wide tokens with a GitHub App installation scoped to selected
