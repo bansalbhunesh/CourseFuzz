@@ -35,6 +35,7 @@ from coursefuzz.domain.models import (
 from coursefuzz.security.access import SESSION_COOKIE, AccessPolicy, Principal
 from coursefuzz.security.github_oauth import GitHubOAuthClient, sign_state, verify_state
 from coursefuzz.security.installations import InstallationStore, apply_installation_event
+from coursefuzz.security.rate_limit import TokenBucketRateLimiter
 from coursefuzz.security.webhooks import (
     DELIVERY_HEADER,
     EVENT_HEADER,
@@ -69,6 +70,7 @@ def build_router(
     access: AccessPolicy,
     installation_store: InstallationStore | None = None,
     oauth_client: GitHubOAuthClient | None = None,
+    rate_limiter: TokenBucketRateLimiter | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api")
     webhook_secret = os.getenv("COURSEFUZZ_GITHUB_WEBHOOK_SECRET", "").strip()
@@ -199,9 +201,17 @@ def build_router(
     def create_run(
         payload: RunCreate,
         background_tasks: BackgroundTasks,
+        response: Response,
         principal: Principal = principal_dependency,
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ) -> RunView:
+        if rate_limiter and rate_limiter.enabled and not rate_limiter.allow(principal.tenant_id):
+            retry = rate_limiter.retry_after_seconds(principal.tenant_id)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Rate limit exceeded. Retry after {retry}s.",
+                headers={"Retry-After": str(retry)},
+            )
         try:
             run, created = service.create_run(
                 payload.assignment_id,

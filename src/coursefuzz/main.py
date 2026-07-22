@@ -23,6 +23,7 @@ from coursefuzz.security.access import AccessPolicy
 from coursefuzz.security.github_app import build_credential_provider
 from coursefuzz.security.github_oauth import GitHubOAuthClient
 from coursefuzz.security.installations import build_installation_store
+from coursefuzz.security.rate_limit import TokenBucketRateLimiter
 from coursefuzz.services.assignment_service import AssignmentService
 from coursefuzz.services.run_service import RunService
 
@@ -64,6 +65,7 @@ def create_app(
         destination_coordinator,
     )
     access = access_policy or AccessPolicy.from_env()
+    rate_limiter = TokenBucketRateLimiter.from_env()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -80,6 +82,7 @@ def create_app(
     app.state.assignment_service = assignment_service
     app.state.access_policy = access
     app.state.installation_store = installation_store
+    app.state.rate_limiter = rate_limiter
     oauth_client = GitHubOAuthClient.from_env()
     app.add_middleware(
         CORSMiddleware,
@@ -94,7 +97,9 @@ def create_app(
         ],
     )
     app.include_router(
-        build_router(service, assignment_service, access, installation_store, oauth_client)
+        build_router(
+            service, assignment_service, access, installation_store, oauth_client, rate_limiter,
+        )
     )
 
     default_web_dist = Path(__file__).resolve().parents[2] / "web" / "dist"
