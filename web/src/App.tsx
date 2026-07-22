@@ -623,6 +623,11 @@ export function App() {
               <div>
                 <h3>Execution is separating guesses from evidence.</h3>
                 <p>Running the instructor suite against eight bounded misconception programs.</p>
+                <div className="pulse-text">
+                  &gt; Analyzing abstract syntax tree...<br/>
+                  &gt; Proposing bounded hypotheses...<br/>
+                  &gt; Validating hypotheses against deterministic oracle...
+                </div>
               </div>
             </div>
           )}

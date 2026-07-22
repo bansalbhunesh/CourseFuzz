@@ -18,17 +18,35 @@ ALLOWED_NODES = {
     ast.arg,
     ast.Return,
     ast.If,
+    ast.IfExp,
+    ast.For,
+    ast.While,
+    ast.Assign,
+    ast.AugAssign,
     ast.Compare,
     ast.BoolOp,
     ast.BinOp,
     ast.UnaryOp,
     ast.Name,
     ast.Load,
+    ast.Store,
     ast.Constant,
+    ast.Call,
+    ast.Tuple,
+    ast.List,
+    ast.Dict,
+    ast.Subscript,
+    ast.Slice,
+    ast.Expr,
+    ast.Pass,
     ast.And,
     ast.Or,
     ast.Eq,
     ast.NotEq,
+    ast.Is,
+    ast.IsNot,
+    ast.In,
+    ast.NotIn,
     ast.Lt,
     ast.LtE,
     ast.Gt,
@@ -37,6 +55,9 @@ ALLOWED_NODES = {
     ast.Sub,
     ast.Mult,
     ast.Mod,
+    ast.Pow,
+    ast.BitAnd,
+    ast.BitOr,
     ast.USub,
 }
 
@@ -61,10 +82,25 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
     entrypoint = str(payload["entrypoint"])
     tests = payload["tests"]
     tree = validate_source(source, entrypoint)
-    globals_dict: dict[str, Any] = {"__builtins__": {}}
-    locals_dict: dict[str, Any] = {}
-    exec(compile(tree, "<submission>", "exec"), globals_dict, locals_dict)  # noqa: S102
-    function = locals_dict[entrypoint]
+    globals_dict: dict[str, Any] = {
+        "__builtins__": {
+            "range": range,
+            "len": len,
+            "min": min,
+            "max": max,
+            "abs": abs,
+            "sum": sum,
+            "int": int,
+            "str": str,
+            "bool": bool,
+            "list": list,
+            "dict": dict,
+            "set": set,
+            "tuple": tuple,
+        }
+    }
+    exec(compile(tree, "<submission>", "exec"), globals_dict)  # noqa: S102
+    function = globals_dict[entrypoint]
     outputs: list[dict[str, Any]] = []
     passed = 0
     for test in tests:

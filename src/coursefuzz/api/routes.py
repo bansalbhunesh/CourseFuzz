@@ -26,8 +26,11 @@ from coursefuzz.domain.models import (
     ApprovalReceipt,
     ApprovalRequest,
     AssignmentCreate,
+    AssignmentGenerateRequest,
     AssignmentSnapshot,
     AssignmentSummary,
+    InstructorTestInput,
+    ProgramSourceInput,
     RunCreate,
     RunStatus,
     RunView,
@@ -62,6 +65,12 @@ class SessionCreate(BaseModel):
 
 class InstallationClaim(BaseModel):
     installation_id: int = Field(gt=0)
+
+
+class GitHubImportRequest(BaseModel):
+    repository: str = Field(pattern=r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+    commit_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
+    branch: str = Field(default="main", min_length=1, max_length=200)
 
 
 def build_router(
@@ -186,6 +195,52 @@ def build_router(
             return snapshot
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @router.post(
+        "/assignments/generate",
+        response_model=AssignmentCreate,
+        status_code=status.HTTP_200_OK,
+    )
+    def generate_assignment(
+        payload: AssignmentGenerateRequest,
+        principal: Principal = principal_dependency,
+    ) -> AssignmentCreate:
+        prompt = payload.prompt.lower()
+        title = "Generated Assignment"
+        entrypoint = "solution_fn"
+        summary = f"Auto-generated assignment from prompt: {payload.prompt}"
+        
+        if "factorial" in prompt:
+            title = "Factorial Function"
+            entrypoint = "factorial"
+            ref_source = "def factorial(n):\n    if n <= 1:\n        return 1\n    return n * factorial(n - 1)\n"
+            ctrl_source = "def factorial(n):\n    res = 1\n    for i in range(1, n + 1):\n        res *= i\n    return res\n"
+            mut_source = "def factorial(n):\n    return n * n\n"
+        elif "fibonacci" in prompt or "fib" in prompt:
+            title = "Fibonacci Sequence"
+            entrypoint = "fibonacci"
+            ref_source = "def fibonacci(n):\n    if n == 0: return 0\n    a, b = 0, 1\n    for _ in range(2, n + 1):\n        a, b = b, a + b\n    return b\n"
+            ctrl_source = "def fibonacci(n, memo={0:0, 1:1}):\n    if n not in memo:\n        memo[n] = fibonacci(n-1) + fibonacci(n-2)\n    return memo[n]\n"
+            mut_source = "def fibonacci(n):\n    return n\n"
+        else:
+            title = "Absolute Value Magnitude"
+            entrypoint = "absolute_value"
+            ref_source = "def absolute_value(n):\n    if n < 0:\n        return -n\n    return n\n"
+            ctrl_source = "def absolute_value(n):\n    return abs(n)\n"
+            mut_source = "def absolute_value(n):\n    return -n\n"
+
+        return AssignmentCreate(
+            title=title,
+            summary=summary,
+            entrypoint=entrypoint,
+            input_names=("n",),
+            domain_min=-10,
+            domain_max=10,
+            reference=ProgramSourceInput(title="Reference Solution", source=ref_source),
+            accepted_solutions=[ProgramSourceInput(title="Control Solution", source=ctrl_source)],
+            misconception_programs=[ProgramSourceInput(title="Buggy Misconception", source=mut_source, misconception="Flawed logic")],
+            instructor_tests=[InstructorTestInput(inputs=(2,), expected=2, label="small_pos")],
+        )
 
     @router.get("/assignments/{assignment_id}", response_model=AssignmentSnapshot)
     def get_assignment(
@@ -435,6 +490,37 @@ def build_router(
             "installation_id": payload.installation_id,
             "repositories": installation_store.repositories_for_workspace(principal.tenant_id),
         }
+
+    @router.post("/github/import", status_code=status.HTTP_201_CREATED)
+    def github_import(
+        payload: GitHubImportRequest,
+        response: Response,
+        principal: Principal = principal_dependency,
+    ) -> dict:
+        """Import an assignment from a GitHub repository."""
+        if installation_store is None:
+            raise HTTPException(status_code=503, detail="GitHub App is not configured")
+        
+        # Build credential provider to pass to Importer
+        from coursefuzz.security.github_app import build_credential_provider
+        from coursefuzz.services.github_importer import GitHubImporterService, GitHubImportError
+        
+        provider = build_credential_provider(installation_store)
+        importer = GitHubImporterService(provider, assignments)
+        
+        try:
+            assignment_id = importer.import_repository(
+                repository=payload.repository,
+                tenant_id=principal.tenant_id,
+                commit_sha=payload.commit_sha,
+                branch=payload.branch,
+                installation_id=installation_store.installation_for_workspace(principal.tenant_id),
+            )
+            return {"id": assignment_id}
+        except GitHubImportError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
 
     @router.get("/github/login")
     def github_login(

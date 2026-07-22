@@ -27,12 +27,6 @@ _RUNTIME = f"{platform.python_implementation().lower()}-{platform.python_version
 
 @dataclass(frozen=True)
 class _RawRun:
-    """Normalized result of one subprocess invocation.
-
-    Both the legacy ``run_suite`` view (``SuiteExecution``) and the versioned ``execute`` view
-    (``ExecutionResult``) are built from this single record, so the two paths can never drift.
-    """
-
     outcome: ExecutionOutcome
     passed: int
     failed: int
@@ -44,20 +38,9 @@ class _RawRun:
 
 
 class LocalRestrictedRunner(ExecutionGateway):
-    """Executes the restricted demo language in an isolated ``python -I`` process.
-
-    This is a development-only containment boundary. It contains the restricted demo language at
-    the source-AST level and enforces a wall deadline and an output ceiling out-of-process. It is
-    explicitly *not* hostile-code isolation: `next.md` Milestone 1 requires a no-network remote
-    ``RemoteIsolatedRunner`` behind the same :class:`ExecutionGateway` before any untrusted-code
-    claim is made. The gateway seam exists so that swap needs no engine change.
-    """
-
     def __init__(self, timeout_seconds: float = 1.5) -> None:
         self.timeout_seconds = timeout_seconds
         self.runner_path = Path(__file__).with_name("runner.py").resolve()
-
-    # -- versioned gateway contract ---------------------------------------------------------
 
     def execute(self, request: ExecutionRequest) -> ExecutionResult:
         raw = self._invoke(
@@ -94,8 +77,6 @@ class LocalRestrictedRunner(ExecutionGateway):
             receipt=receipt,
         )
 
-    # -- legacy engine-facing view (behavior-preserving) ------------------------------------
-
     def run_suite(
         self,
         program: ProgramVariant,
@@ -126,11 +107,7 @@ class LocalRestrictedRunner(ExecutionGateway):
         tests: tuple[TestCase, ...] | list[TestCase],
         timeout_seconds: float | None = None,
     ) -> list[SuiteExecution]:
-        # The local process has negligible per-execution overhead, so batching is just its own
-        # byte-identical run_suite looped: no behavior change relative to the sequential path.
         return [self.run_suite(program, entrypoint, tests, timeout_seconds) for program in programs]
-
-    # -- shared subprocess invocation -------------------------------------------------------
 
     def _invoke(
         self,
@@ -160,7 +137,7 @@ class LocalRestrictedRunner(ExecutionGateway):
                     capture_output=True,
                     cwd=workdir,
                     env=environment,
-                    timeout=max(timeout, 0.01),
+                    timeout=max(timeout, 0.001),
                     check=False,
                     creationflags=creation_flags,
                 )
@@ -191,6 +168,7 @@ class LocalRestrictedRunner(ExecutionGateway):
             result = json.loads(completed.stdout or "{}")
         except json.JSONDecodeError:
             result = {"ok": False, "error": "Runner returned malformed JSON"}
+
         if not result.get("ok"):
             rejected = result.get("kind") == "rejected"
             return _RawRun(
@@ -199,28 +177,30 @@ class LocalRestrictedRunner(ExecutionGateway):
                 ),
                 passed=0,
                 failed=num_tests,
-                error=str(result.get("error", "Runner failed")),
+                error=result.get("error"),
                 termination_reason=(
                     "restricted-language-violation" if rejected else "runner-error"
                 ),
                 output_bytes=output_bytes,
                 wall_ms=wall_ms,
             )
+
+        outputs = list(result.get("outputs", []))
+        passed = sum(1 for item in outputs if item.get("passed"))
+        failed = num_tests - passed
         return _RawRun(
             outcome=ExecutionOutcome.COMPLETED,
-            passed=int(result["passed"]),
-            failed=int(result["failed"]),
+            passed=passed,
+            failed=failed,
             error=None,
             termination_reason="completed",
             output_bytes=output_bytes,
             wall_ms=wall_ms,
-            outputs=result["outputs"],
+            outputs=outputs,
         )
 
-    @staticmethod
-    def _elapsed_ms(started: float) -> int:
-        return max(0, round((time.monotonic() - started) * 1000))
+    def _elapsed_ms(self, started: float) -> int:
+        return max(0, int((time.monotonic() - started) * 1000))
 
 
-# Backwards-compatible alias: the engine, services, and existing tests import this name.
 SubprocessPythonSandbox = LocalRestrictedRunner

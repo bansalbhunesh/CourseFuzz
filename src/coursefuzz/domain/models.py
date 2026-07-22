@@ -42,7 +42,7 @@ class TestCase(BaseModel):
     inputs: tuple[int, ...]
     expected: JsonAtom | None = None
     label: str
-    source: Literal["instructor", "gpt-5.6", "deterministic", "minimized"]
+    source: Literal["instructor", "gpt-5.6", "deterministic", "minimized"] = "instructor"
 
 
 class ProgramVariant(BaseModel):
@@ -50,7 +50,7 @@ class ProgramVariant(BaseModel):
 
     id: str
     title: str
-    misconception: str
+    misconception: str = ""
     source: str
 
 
@@ -101,7 +101,7 @@ DestinationConfig = LocalArtifactDestination | GitHubPullRequestDestination
 class AssignmentSpec(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    id: str
+    id: str = ""
     title: str
     summary: str
     entrypoint: str
@@ -138,6 +138,11 @@ class AssignmentCreate(BaseModel):
     title: str = Field(min_length=3, max_length=120)
     summary: str = Field(min_length=10, max_length=2_000)
     entrypoint: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+class AssignmentGenerateRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    prompt: str = Field(min_length=3, max_length=1_000)
     input_names: tuple[str, ...] = Field(min_length=1, max_length=6)
     domain_min: int = Field(ge=-1_000, le=1_000)
     domain_max: int = Field(ge=-1_000, le=1_000)
@@ -166,12 +171,23 @@ class AssignmentCreate(BaseModel):
         return self
 
 
+class GitHubImportProvenance(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    installation_id: int
+    repository: str
+    commit_sha: str
+    branch: str | None = None
+    webhook_delivery_id: str | None = None
+
+
 class AssignmentSnapshot(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: str
     snapshot_sha256: str
-    provenance: Literal["seeded", "manual"]
+    provenance: Literal["seeded", "manual", "github_import"]
+    github_provenance: GitHubImportProvenance | None = None
     created_at: datetime
     spec: AssignmentSpec
 
@@ -179,7 +195,8 @@ class AssignmentSnapshot(BaseModel):
 class AssignmentSummary(BaseModel):
     id: str
     snapshot_sha256: str
-    provenance: Literal["seeded", "manual"]
+    provenance: Literal["seeded", "manual", "github_import"]
+    github_provenance: GitHubImportProvenance | None = None
     created_at: datetime
     title: str
     summary: str

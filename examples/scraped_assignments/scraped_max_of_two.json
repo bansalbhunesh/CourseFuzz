@@ -1,0 +1,50 @@
+{
+  "title": "Max of Two",
+  "summary": "Return the maximum of two integers a and b.",
+  "entrypoint": "max_of_two",
+  "input_names": [
+    "a",
+    "b"
+  ],
+  "domain_min": -50,
+  "domain_max": 50,
+  "reference": {
+    "title": "Built-in Reference",
+    "source": "def max_of_two(a, b):\n    return max(a, b)\n"
+  },
+  "accepted_solutions": [
+    {
+      "title": "If-Else Solution",
+      "source": "def max_of_two(a, b):\n    if a > b:\n        return a\n    return b\n"
+    }
+  ],
+  "misconception_programs": [
+    {
+      "title": "Always returns first",
+      "misconception": "Ignores the second parameter.",
+      "source": "def max_of_two(a, b):\n    return a\n"
+    }
+  ],
+  "instructor_tests": [
+    {
+      "inputs": [
+        1,
+        2
+      ],
+      "expected": 2,
+      "label": "b_larger"
+    },
+    {
+      "inputs": [
+        5,
+        3
+      ],
+      "expected": 5,
+      "label": "a_larger"
+    }
+  ],
+  "destination": {
+    "kind": "local_artifact",
+    "test_directory": "verified_tests"
+  }
+}

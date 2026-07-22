@@ -1,0 +1,47 @@
+{
+  "title": "Square",
+  "summary": "Return the square of an integer n.",
+  "entrypoint": "square",
+  "input_names": [
+    "n"
+  ],
+  "domain_min": -10,
+  "domain_max": 10,
+  "reference": {
+    "title": "Multiply Reference",
+    "source": "def square(n):\n    return n * n\n"
+  },
+  "accepted_solutions": [
+    {
+      "title": "Power Solution",
+      "source": "def square(n):\n    return n ** 2\n"
+    }
+  ],
+  "misconception_programs": [
+    {
+      "title": "Double instead of square",
+      "misconception": "Returns 2*n instead of n*n.",
+      "source": "def square(n):\n    return n * 2\n"
+    }
+  ],
+  "instructor_tests": [
+    {
+      "inputs": [
+        3
+      ],
+      "expected": 9,
+      "label": "positive"
+    },
+    {
+      "inputs": [
+        -4
+      ],
+      "expected": 16,
+      "label": "negative"
+    }
+  ],
+  "destination": {
+    "kind": "local_artifact",
+    "test_directory": "verified_tests"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "title": "Is Even",
+  "summary": "Return True if the integer is even, else False.",
+  "entrypoint": "is_even",
+  "input_names": [
+    "n"
+  ],
+  "domain_min": -100,
+  "domain_max": 100,
+  "reference": {
+    "title": "Modulo Reference",
+    "source": "def is_even(n):\n    return n % 2 == 0\n"
+  },
+  "accepted_solutions": [
+    {
+      "title": "Bitwise Solution",
+      "source": "def is_even(n):\n    return (n & 1) == 0\n"
+    }
+  ],
+  "misconception_programs": [
+    {
+      "title": "Fails on negative numbers",
+      "misconception": "Uses bitwise without considering Python's negative representation, or uses naive division check.",
+      "source": "def is_even(n):\n    if n < 0: return False\n    return n % 2 == 0\n"
+    }
+  ],
+  "instructor_tests": [
+    {
+      "inputs": [
+        2
+      ],
+      "expected": true,
+      "label": "positive_even"
+    },
+    {
+      "inputs": [
+        3
+      ],
+      "expected": false,
+      "label": "positive_odd"
+    }
+  ],
+  "destination": {
+    "kind": "local_artifact",
+    "test_directory": "verified_tests"
+  }
+}

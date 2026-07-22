@@ -58,6 +58,8 @@ export function AssignmentImportDialog({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [manifest, setManifest] = useState(exampleManifest);
+  const [prompt, setPrompt] = useState("");
+  const [generating, setGenerating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -102,6 +104,28 @@ export function AssignmentImportDialog({
     setError(null);
   }
 
+  async function generateWithAI() {
+    if (!prompt.trim()) return;
+    setGenerating(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/assignments/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt.trim() }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error("AI manifest generation failed");
+      }
+      setManifest(JSON.stringify(body, null, 2));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Failed to generate AI manifest.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   return (
     <dialog
       className="import-dialog"
@@ -125,14 +149,33 @@ export function AssignmentImportDialog({
         </p>
         <div className="manifest-toolbar">
           <span>JSON MANIFEST</span>
-          <label className="file-action">
-            <span>Load file</span>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <input
-              type="file"
-              accept="application/json,.json"
-              onChange={(event) => void loadFile(event.target.files?.[0])}
+              type="text"
+              placeholder="e.g. Factorial or Fibonacci function..."
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              style={{ padding: "6px 10px", fontSize: "0.8rem", borderRadius: "4px", border: "1px solid var(--rule)" }}
+              aria-label="AI Prompt"
             />
-          </label>
+            <button
+              type="button"
+              className="text-action"
+              onClick={() => void generateWithAI()}
+              disabled={generating || !prompt.trim()}
+              style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}
+            >
+              {generating ? "Generating..." : "⚡ Generate with AI"}
+            </button>
+            <label className="file-action">
+              <span>Load file</span>
+              <input
+                type="file"
+                accept="application/json,.json"
+                onChange={(event) => void loadFile(event.target.files?.[0])}
+              />
+            </label>
+          </div>
         </div>
         <textarea
           className="manifest-input"

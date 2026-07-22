@@ -139,23 +139,35 @@ def test_openai_request_cannot_consume_the_oracle_deadline(
 def test_openai_hypothesis_step_uses_low_reasoning_effort() -> None:
     captured: dict[str, object] = {}
 
-    class _FakeResponses:
+    class _FakeCompletions:
         def parse(self, **kwargs):
             captured.update(kwargs)
             return types.SimpleNamespace(
-                output_parsed=HypothesisBatch(
-                    hypotheses=[
-                        ModelHypothesis(
-                            inputs=(1,),
-                            rationale="Probe the untested boundary.",
-                            misconception="Misses a boundary.",
+                choices=[
+                    types.SimpleNamespace(
+                        message=types.SimpleNamespace(
+                            parsed=HypothesisBatch(
+                                hypotheses=[
+                                    ModelHypothesis(
+                                        inputs=(1,),
+                                        rationale="Probe the untested boundary.",
+                                        misconception="Misses a boundary.",
+                                    )
+                                ]
+                            )
                         )
-                    ]
-                )
+                    )
+                ]
             )
+            
+    class _FakeChat:
+        completions = _FakeCompletions()
+        
+    class _FakeBeta:
+        chat = _FakeChat()
 
     provider = object.__new__(OpenAIHypothesisProvider)
-    provider.client = types.SimpleNamespace(responses=_FakeResponses())
+    provider.client = types.SimpleNamespace(beta=_FakeBeta())
     provider.model = "gpt-5.6-sol"
 
     hypotheses = provider.propose(

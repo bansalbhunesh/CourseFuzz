@@ -1,0 +1,47 @@
+{
+  "title": "Fibonacci",
+  "summary": "Compute the nth Fibonacci number, where fib(0)=0 and fib(1)=1.",
+  "entrypoint": "fibonacci",
+  "input_names": [
+    "n"
+  ],
+  "domain_min": 0,
+  "domain_max": 15,
+  "reference": {
+    "title": "Iterative Reference",
+    "source": "def fibonacci(n):\n    if n == 0:\n        return 0\n    a, b = 0, 1\n    for _ in range(2, n + 1):\n        a, b = b, a + b\n    return b\n"
+  },
+  "accepted_solutions": [
+    {
+      "title": "Recursive with memoization",
+      "source": "def fibonacci(n, memo=None):\n    if memo is None: memo = {0: 0, 1: 1}\n    if n not in memo:\n        memo[n] = fibonacci(n-1, memo) + fibonacci(n-2, memo)\n    return memo[n]\n"
+    }
+  ],
+  "misconception_programs": [
+    {
+      "title": "1-indexed base cases",
+      "misconception": "Assumes fib(1)=1, fib(2)=1 instead of fib(0)=0.",
+      "source": "def fibonacci(n):\n    if n <= 2:\n        return 1\n    return fibonacci(n-1) + fibonacci(n-2)\n"
+    }
+  ],
+  "instructor_tests": [
+    {
+      "inputs": [
+        0
+      ],
+      "expected": 0,
+      "label": "zero"
+    },
+    {
+      "inputs": [
+        5
+      ],
+      "expected": 5,
+      "label": "five"
+    }
+  ],
+  "destination": {
+    "kind": "local_artifact",
+    "test_directory": "verified_tests"
+  }
+}

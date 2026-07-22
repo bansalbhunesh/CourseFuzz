@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CourseFuzz - End-to-End Video Walkthrough</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --accent: #2f81f7;
+      --text: #c9d1d9;
+      --green: #238636;
+      --red: #da3633;
+      --border: #30363d;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .video-container {
+      width: 100%;
+      max-width: 900px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .video-screen {
+      height: 480px;
+      background: #000;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .slide {
+      display: none;
+      width: 100%;
+      height: 100%;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      animation: fadeIn 0.5s ease-in-out;
+    }
+
+    .slide.active { display: flex; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.98); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .badge {
+      background: var(--accent);
+      color: #fff;
+      padding: 4px 12px;
+      font-size: 0.8rem;
+      border-radius: 20px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    h2 { font-size: 2rem; margin-bottom: 12px; color: #fff; }
+    p { font-size: 1.1rem; max-width: 700px; color: #8b949e; line-height: 1.5; }
+
+    .terminal-box {
+      width: 90%;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: left;
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: #58a6ff;
+      margin-top: 20px;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+    }
+
+    .code-box {
+      width: 90%;
+      background: #0d1117;
+      border: 1px solid var(--green);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: left;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: #7ee787;
+      margin-top: 16px;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+    }
+
+    .btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn:hover { background: #1f6feb; }
+
+    .progress-bar {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      margin: 0 20px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.3s linear;
+    }
+
+    .narration-box {
+      background: #161b22;
+      border-top: 1px solid var(--border);
+      padding: 16px 24px;
+      font-size: 0.95rem;
+      color: #c9d1d9;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="video-container">
+    <div class="video-screen">
+      <!-- Slide 1: Intro -->
+      <div class="slide active" id="slide-1">
+        <span class="badge">OpenAI Build Week</span>
+        <h2>Scorch (CourseFuzz)</h2>
+        <p>State-of-the-Art Closed-Loop Agentic Red-Teaming Engine for Programming Assignments</p>
+      </div>
+
+      <!-- Slide 2: Onboarding -->
+      <div class="slide" id="slide-2">
+        <span class="badge">1-Click AI Onboarding</span>
+        <h2>Instant Spec Generation</h2>
+        <p>Type "Is Even function" into the prompt box -> CourseFuzz automatically generates the full Pydantic assignment manifest.</p>
+        <div class="terminal-box">
+          &gt; Generating AssignmentCreate payload...<br>
+          &gt; Entrypoint: is_even | Domain: [-100, 100]<br>
+          &gt; Ingesting reference solution &amp; buggy misconceptions...
+        </div>
+      </div>
+
+      <!-- Slide 3: Initial State & Blind Spot -->
+      <div class="slide" id="slide-3">
+        <span class="badge" style="background: var(--red);">Blind Spot Detected</span>
+        <h2>Initial Mutation Score: 0.0%</h2>
+        <p>The instructor's test suite only tested positive numbers [2, 3]. A buggy program rejecting negative numbers passed completely!</p>
+      </div>
+
+      <!-- Slide 4: Agentic Reflection Loop -->
+      <div class="slide" id="slide-4">
+        <span class="badge">Agentic Reflection Loop</span>
+        <h2>GPT-5.6 Self-Correction Engine</h2>
+        <p>Hypothesis generated -> Executed against Oracle -> Traceback captured -> Re-prompted for self-correction.</p>
+        <div class="terminal-box">
+          &gt; Hypothesis 1: n = -100<br>
+          &gt; Reference Output: True | Bug Output: False<br>
+          &gt; Discovered Counterexample: n = -100!
+        </div>
+      </div>
+
+      <!-- Slide 5: Verified Pytest Patch -->
+      <div class="slide" id="slide-5">
+        <span class="badge" style="background: var(--green);">Verified Ground Truth</span>
+        <h2>Mutation Score: 100.0%</h2>
+        <p>Scorch builds, verifies, and applies a permanent Pytest patch to fix the autograder repository.</p>
+        <div class="code-box">
+from solution import is_even
+
+def test_coursefuzz_is_even():
+    assert is_even(-100) == True
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <button class="btn" id="play-btn" onclick="togglePlay()">▶ Play Video Walkthrough</button>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress"></div>
+      </div>
+      <span id="timer" style="font-family: monospace; font-size: 0.9rem;">00:00 / 00:30</span>
+    </div>
+
+    <!-- Voice Narration Box -->
+    <div class="narration-box" id="narration">
+      Click "Play Video Walkthrough" to start the narration and visual demo.
+    </div>
+  </div>
+
+  <script>
+    const narrations = [
+      "Instructors assume their autograders catch all student bugs. They don't. Welcome to Scorch—an agentic red-teaming engine built to attack programming assignment test suites.",
+      "Watch how easy onboarding is: click 'Generate with AI', type 'Is Even function', and Scorch automatically builds and ingests the full specification.",
+      "When we hit 'Red-Team this suite', the initial mutation score is zero percent—a buggy program that rejects negative numbers sneaks right past the instructor's test suite.",
+      "Watch what happens under the hood: GPT-5.6 generates attack hypotheses. When an attempt fails, Scorch captures the compiler traceback and feeds it BACK into the model for live self-correction.",
+      "Boom! Scorch discovers the exact edge-case input n = -100, proves the reference returns True while the bug returns False, and generates a verified pytest patch—boosting the mutation score from zero to one hundred percent!"
+    ];
+
+    let currentSlide = 0;
+    let isPlaying = false;
+    let timerInterval = null;
+    let seconds = 0;
+
+    function showSlide(index) {
+      document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+      document.getElementById(`slide-${index + 1}`).classList.add('active');
+      document.getElementById('narration').innerText = `🎙️ "${narrations[index]}"`;
+      
+      // Web Speech API Narrator (Computer Voiceover)
+      if ('speechSynthesis' in window && isPlaying) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(narrations[index]);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      const btn = document.getElementById('play-btn');
+      if (isPlaying) {
+        btn.innerText = "❚❚ Pause";
+        startPlayback();
+      } else {
+        btn.innerText = "▶ Play Video Walkthrough";
+        clearInterval(timerInterval);
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      }
+    }
+
+    function startPlayback() {
+      showSlide(currentSlide);
+      timerInterval = setInterval(() => {
+        seconds++;
+        const pct = (seconds / 30) * 100;
+        document.getElementById('progress').style.width = `${pct}%`;
+        document.getElementById('timer').innerText = `00:${seconds < 10 ? '0' : ''}${seconds} / 00:30`;
+
+        if (seconds % 6 === 0 && currentSlide < 4) {
+          currentSlide++;
+          showSlide(currentSlide);
+        }
+
+        if (seconds >= 30) {
+          clearInterval(timerInterval);
+          isPlaying = false;
+          document.getElementById('play-btn').innerText = "🔄 Replay Video";
+          seconds = 0;
+          currentSlide = 0;
+        }
+      }, 1000);
+    }
+  </script>
+
+</body>
+</html>

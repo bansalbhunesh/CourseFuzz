@@ -11,6 +11,7 @@ from coursefuzz.domain.models import (
     AssignmentSnapshot,
     AssignmentSpec,
     AssignmentSummary,
+    GitHubImportProvenance,
     ProgramSourceInput,
     ProgramVariant,
     TestCase,
@@ -54,6 +55,8 @@ class AssignmentService:
         self,
         payload: AssignmentCreate,
         tenant_id: str = LOCAL_TENANT,
+        provenance: str = "manual",
+        github_provenance: GitHubImportProvenance | None = None,
     ) -> tuple[AssignmentSnapshot, bool]:
         spec = self._build_spec(payload)
         self._preflight(spec)
@@ -62,7 +65,8 @@ class AssignmentService:
         snapshot = AssignmentSnapshot(
             id=assignment_id,
             snapshot_sha256=digest,
-            provenance="manual",
+            provenance=provenance,
+            github_provenance=github_provenance,
             created_at=datetime.now(UTC),
             spec=spec.model_copy(update={"id": assignment_id}),
         )
@@ -157,6 +161,7 @@ class AssignmentService:
             id=snapshot.id,
             snapshot_sha256=snapshot.snapshot_sha256,
             provenance=snapshot.provenance,
+            github_provenance=snapshot.github_provenance,
             created_at=snapshot.created_at,
             title=spec.title,
             summary=spec.summary,

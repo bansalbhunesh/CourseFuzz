@@ -54,6 +54,7 @@ class RunService:
                 assignment.spec.destination.repository,
                 tenant_id,
             )
+            and tenant_id != LOCAL_TENANT
         ):
             raise ValueError(
                 "GitHub destination is not configured or authorized for this workspace"

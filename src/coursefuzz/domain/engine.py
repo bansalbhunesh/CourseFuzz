@@ -68,17 +68,24 @@ class AssessmentEngine:
                 evidence=self._evidence(assignment, (), finding=False),
             )
 
-        proposed = self.hypotheses.propose(
-            HypothesisContext.from_assignment(assignment),
-            tuple(
-                SurvivorHint(id=item.id, misconception=item.misconception)
-                for item in survivors
-            ),
-        )
-        verdicts, decisions = self._verify_hypotheses(
-            assignment, survivors, proposed, deadline
-        )
-        verified = [verdict for verdict in verdicts if verdict.status == "verified"]
+        context = HypothesisContext.from_assignment(assignment)
+        survivor_hints = tuple(SurvivorHint(id=item.id, misconception=item.misconception) for item in survivors)
+        
+        max_attempts = 2
+        for attempt in range(max_attempts):
+            proposed = self.hypotheses.propose(context, survivor_hints)
+            verdicts, decisions = self._verify_hypotheses(
+                assignment, survivors, proposed, deadline
+            )
+            verified = [verdict for verdict in verdicts if verdict.status == "verified"]
+            if verified:
+                break
+                
+            # If we failed and have another attempt, feed the failure reasons back
+            if attempt < max_attempts - 1:
+                feedback = [f"Hypothesis {v.hypothesis.inputs} rejected: {v.reason}" for v in verdicts]
+                context = context.model_copy(update={"previous_feedback": tuple(feedback)})
+                
         if not verified:
             return AnalysisResult(
                 before=before,

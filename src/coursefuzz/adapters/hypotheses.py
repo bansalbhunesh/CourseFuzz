@@ -9,6 +9,7 @@ from itertools import permutations, product
 
 from pydantic import BaseModel, Field
 
+from coursefuzz.domain.ast_analyzer import analyze_source_ast
 from coursefuzz.domain.models import AssignmentSpec, AttackHypothesis
 
 
@@ -41,9 +42,13 @@ class HypothesisContext(BaseModel):
     domain_min: int
     domain_max: int
     existing_tests: tuple[ExistingTestView, ...]
+    ast_constants: tuple[int, ...] = ()
+    ast_operators: tuple[str, ...] = ()
+    previous_feedback: tuple[str, ...] = ()
 
     @classmethod
     def from_assignment(cls, assignment: AssignmentSpec) -> HypothesisContext:
+        ast_info = analyze_source_ast(assignment.reference.source)
         return cls(
             title=assignment.title,
             summary=assignment.summary,
@@ -54,6 +59,9 @@ class HypothesisContext(BaseModel):
                 ExistingTestView(inputs=test.inputs, label=test.label)
                 for test in assignment.instructor_tests
             ),
+            ast_constants=ast_info.boundary_constants,
+            ast_operators=ast_info.comparison_operators,
+            previous_feedback=(),
         )
 
 
@@ -185,33 +193,35 @@ class OpenAIHypothesisProvider(HypothesisProvider):
         context: HypothesisContext,
         survivors: tuple[SurvivorHint, ...],
     ) -> tuple[AttackHypothesis, ...]:
-        response = self.client.responses.parse(
+        response = self.client.beta.chat.completions.parse(
             model=self.model,
-            # This is a small, schema-constrained candidate-generation step. Official GPT-5.6
-            # guidance recommends low effort for latency-sensitive work; execution—not model
-            # reasoning—establishes truth below this boundary.
             reasoning={"effort": "low"},
-            text_format=HypothesisBatch,
-            max_output_tokens=1400,
-            store=False,
-            safety_identifier="coursefuzz-demo",
-            instructions=(
-                "Generate bounded test-input hypotheses for an introductory programming "
-                "assignment. Inputs are hypotheses only: never claim correctness or invent "
-                "expected outputs. The execution oracle will reject most candidates. Stay "
-                "inside the declared integer domain and return at most eight diverse cases."
-            ),
-            input=json.dumps(
+            response_format=HypothesisBatch,
+            messages=[
                 {
-                    "assignment": context.model_dump(mode="json"),
-                    "surviving_misconceptions": [
-                        item.model_dump(mode="json") for item in survivors
-                    ],
+                    "role": "system",
+                    "content": "Generate bounded test-input hypotheses for an introductory programming "
+                               "assignment. Inputs are hypotheses only: never claim correctness or invent "
+                               "expected outputs. The execution oracle will reject most candidates. Stay "
+                               "inside the declared integer domain and return at most eight diverse cases."
                 },
-                sort_keys=True,
-            ),
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "assignment": context.model_dump(mode="json"),
+                            "surviving_misconceptions": [
+                                item.model_dump(mode="json") for item in survivors
+                            ],
+                            "previous_feedback": context.previous_feedback,
+                        },
+                        sort_keys=True,
+                    )
+                }
+            ],
+            max_tokens=1400,
         )
-        parsed = response.output_parsed
+        parsed = response.choices[0].message.parsed
         if parsed is None:
             raise RuntimeError("GPT-5.6 returned no structured hypothesis batch")
         return tuple(
