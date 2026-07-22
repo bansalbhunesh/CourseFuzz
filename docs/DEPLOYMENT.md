@@ -86,6 +86,14 @@ gate rendered successfully and `/api/health` returned HTTP 200 with `storage: po
 [main CI](https://github.com/bansalbhunesh/CourseFuzz/actions/runs/29886596892) passed the backend,
 frontend, production-container, frozen-benchmark, and live runc/runsc isolation jobs.
 
+On 2026-07-22 the deployment was moved off the earlier shared personal access token onto the
+least-privilege GitHub App. Production now mints short-lived, repository-scoped installation tokens
+(the App installation is limited to the demo target with `Checks: read` plus `Contents` and
+`Pull requests: write`), refreshed before expiry and never persisted in a run or assignment
+document. `/api/health` reports `github_auth: github-app` in place of `static-token`, confirming the
+App path is active in the live container; the exposed shared token is being retired. This is the
+credential path multi-workspace users and Round-2 judges exercise.
+
 This is deployment evidence, not final video closure. The release manifest is now
 `round-2-active`: the CourseFuzz-created [Demo Target draft PR
 #3](https://github.com/bansalbhunesh/CourseFuzz-Demo-Target/pull/3) preserves the external write,
