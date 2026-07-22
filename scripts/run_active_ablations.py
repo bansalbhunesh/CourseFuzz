@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from coursefuzz.adapters.sandbox import SubprocessPythonSandbox
-from evaluations.real_scoring import ProgramExecution
+from coursefuzz.adapters.sandbox import SubprocessPythonSandbox  # noqa: E402
+from evaluations.real_scoring import ProgramExecution  # noqa: E402
 
 REAL_DIR = ROOT / "evaluations" / "real"
 MANIFEST = REAL_DIR / "selection_manifest.json"

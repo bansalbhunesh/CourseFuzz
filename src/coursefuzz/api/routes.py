@@ -213,14 +213,38 @@ def build_router(
         if "factorial" in prompt:
             title = "Factorial Function"
             entrypoint = "factorial"
-            ref_source = "def factorial(n):\n    if n <= 1:\n        return 1\n    return n * factorial(n - 1)\n"
-            ctrl_source = "def factorial(n):\n    res = 1\n    for i in range(1, n + 1):\n        res *= i\n    return res\n"
+            ref_source = (
+                "def factorial(n):\n"
+                "    if n <= 1:\n"
+                "        return 1\n"
+                "    return n * factorial(n - 1)\n"
+            )
+            ctrl_source = (
+                "def factorial(n):\n"
+                "    res = 1\n"
+                "    for i in range(1, n + 1):\n"
+                "        res *= i\n"
+                "    return res\n"
+            )
             mut_source = "def factorial(n):\n    return n * n\n"
         elif "fibonacci" in prompt or "fib" in prompt:
             title = "Fibonacci Sequence"
             entrypoint = "fibonacci"
-            ref_source = "def fibonacci(n):\n    if n == 0: return 0\n    a, b = 0, 1\n    for _ in range(2, n + 1):\n        a, b = b, a + b\n    return b\n"
-            ctrl_source = "def fibonacci(n, memo={0:0, 1:1}):\n    if n not in memo:\n        memo[n] = fibonacci(n-1) + fibonacci(n-2)\n    return memo[n]\n"
+            ref_source = (
+                "def fibonacci(n):\n"
+                "    if n == 0:\n"
+                "        return 0\n"
+                "    a, b = 0, 1\n"
+                "    for _ in range(2, n + 1):\n"
+                "        a, b = b, a + b\n"
+                "    return b\n"
+            )
+            ctrl_source = (
+                "def fibonacci(n, memo={0: 0, 1: 1}):\n"
+                "    if n not in memo:\n"
+                "        memo[n] = fibonacci(n - 1) + fibonacci(n - 2)\n"
+                "    return memo[n]\n"
+            )
             mut_source = "def fibonacci(n):\n    return n\n"
         else:
             title = "Absolute Value Magnitude"

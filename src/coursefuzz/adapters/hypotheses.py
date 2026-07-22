@@ -200,10 +200,13 @@ class OpenAIHypothesisProvider(HypothesisProvider):
             messages=[
                 {
                     "role": "system",
-                    "content": "Generate bounded test-input hypotheses for an introductory programming "
-                    "assignment. Inputs are hypotheses only: never claim correctness or invent "
-                    "expected outputs. The execution oracle will reject most candidates. Stay "
-                    "inside the declared integer domain and return at most eight diverse cases.",
+                    "content": (
+                        "Generate bounded test-input hypotheses for an introductory "
+                        "programming assignment. Inputs are hypotheses only: never claim "
+                        "correctness or invent expected outputs. The execution oracle will "
+                        "reject most candidates. Stay inside the declared integer domain and "
+                        "return at most eight diverse cases."
+                    ),
                 },
                 {
                     "role": "user",

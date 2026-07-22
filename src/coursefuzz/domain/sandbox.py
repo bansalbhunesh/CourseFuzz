@@ -38,7 +38,8 @@ def run_in_isolated_sandbox(
         "PYTHONDONTWRITEBYTECODE": "1",
     }
 
-    # Resource restriction wrapper code preamble (for Unix/Linux platforms where resource is available)
+    # Resource restriction wrapper code preamble (for Unix/Linux platforms
+    # where resource is available)
     preamble = (
         "import sys\n"
         "try:\n"

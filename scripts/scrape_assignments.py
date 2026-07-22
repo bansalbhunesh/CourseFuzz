@@ -86,7 +86,10 @@ PROBLEMS = [
         "misconception_programs": [
             {
                 "title": "Fails on negative numbers",
-                "misconception": "Uses bitwise without considering Python's negative representation, or uses naive division check.",
+                "misconception": (
+                    "Uses bitwise without considering Python's negative representation, "
+                    "or uses naive division check."
+                ),
                 "source": "def is_even(n):\n    if n < 0: return False\n    return n % 2 == 0\n",
             }
         ],

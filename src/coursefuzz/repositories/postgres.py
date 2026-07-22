@@ -196,7 +196,9 @@ class PostgresRunRepository:
                 WHERE id IN (
                     SELECT id FROM runs
                     WHERE (leased_until IS NULL OR leased_until < NOW())
-                      AND document::jsonb->>'status' IN ('queued', 'analyzing', 'applying', 'external_ci_pending')
+                      AND document::jsonb->>'status' IN (
+                          'queued', 'analyzing', 'applying', 'external_ci_pending'
+                      )
                     ORDER BY updated_at ASC
                     FOR UPDATE SKIP LOCKED
                     LIMIT %s

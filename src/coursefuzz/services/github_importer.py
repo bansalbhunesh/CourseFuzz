@@ -52,7 +52,8 @@ class GitHubImporterService:
             return None
         if response.status_code != 200:
             raise GitHubImportError(
-                f"Failed to fetch {path} from {repository} at {commit_sha}: {response.status_code} {response.text}"
+                f"Failed to fetch {path} from {repository} at {commit_sha}: "
+                f"{response.status_code} {response.text}"
             )
         data = response.json()
         if data.get("type") != "file":
@@ -75,7 +76,8 @@ class GitHubImporterService:
             return []
         if response.status_code != 200:
             raise GitHubImportError(
-                f"Failed to list directory {path} in {repository}: {response.status_code} {response.text}"
+                f"Failed to list directory {path} in {repository}: "
+                f"{response.status_code} {response.text}"
             )
         data = response.json()
         if not isinstance(data, list):
