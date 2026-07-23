@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from coursefuzz.repositories.migrator import run_migrations
+from coursefuzz.repositories.migrator import run_migrations  # noqa: E402
 
 
 def main() -> None:
