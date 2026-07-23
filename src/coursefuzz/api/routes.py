@@ -205,6 +205,13 @@ def build_router(
         payload: AssignmentGenerateRequest,
         principal: Principal = principal_dependency,
     ) -> AssignmentCreate:
+        """Return a canned assignment template selected by keyword matching.
+
+        This is a template chooser, not an LLM generator. The three templates
+        (factorial, fibonacci, absolute_value) are selected by substring match
+        against the user's prompt. A future iteration may wire this to the
+        hypothesis provider for true generative assignment creation.
+        """
         prompt = payload.prompt.lower()
         title = "Generated Assignment"
         entrypoint = "solution_fn"

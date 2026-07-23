@@ -32,7 +32,7 @@ services:
       - key: COURSEFUZZ_COOKIE_SECURE
         value: "1"
       - key: COURSEFUZZ_MODEL
-        value: gpt-5.6-sol
+        value: gpt-4o
       - key: COURSEFUZZ_ANALYSIS_DEADLINE_SECONDS
         value: "60"
 

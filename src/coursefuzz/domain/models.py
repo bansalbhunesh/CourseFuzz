@@ -225,7 +225,7 @@ class AttackHypothesis(BaseModel):
     inputs: tuple[int, ...]
     rationale: str
     misconception: str
-    provider: Literal["gpt-5.6", "deterministic-fallback"]
+    provider: Literal["gpt-4o", "gpt-5.6", "deterministic-fallback"]
     # Which candidate generator produced this input, when a scheduler composes several. Optional so
     # the single-provider path and existing serialized runs are unchanged.
     generator: str | None = None
@@ -340,7 +340,7 @@ class RunView(BaseModel):
     assignment_id: str
     assignment_snapshot_sha256: str | None = None
     status: RunStatus
-    mode: Literal["live-gpt-5.6", "deterministic-fallback"]
+    mode: Literal["live-gpt-4o", "live-gpt-5.6", "deterministic-fallback"]
     created_at: datetime
     updated_at: datetime
     analysis: AnalysisResult | None = None

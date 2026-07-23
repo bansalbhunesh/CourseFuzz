@@ -2,7 +2,7 @@
 
 **CourseFuzz** is a state-of-the-art, agentic red-teaming engine designed to ruthlessly evaluate the integrity of programming assignments. By fusing the autonomous reasoning of modern LLMs with the absolute deterministic reality of sandboxed execution, CourseFuzz discovers catastrophic blind spots in instructor test suites before they ever reach students.
 
-> **Status:** `Production Ready` | **Paradigm:** `Agentic Reflection` + `Deterministic Oracle`
+> **Status:** `Round-2 Demo · Adversarially Tested` | **Paradigm:** `Agentic Reflection` + `Deterministic Oracle`
 
 ## 🎬 System Walkthrough Video & Narration
 
@@ -34,12 +34,12 @@ CourseFuzz eclipses the competition by treating the instructor's test suite as a
 CourseFuzz doesn't just guess; it actively reasons and self-corrects. When the engine generates a bounded attack hypothesis, it throws it against the sandboxed deterministic execution oracle. If the hypothesis violates domain constraints or fails to execute, the execution traceback is fed *back* into the LLM context window. The agentic loop actively self-corrects its reasoning based on real compiler feedback—dramatically increasing the lethality of its mutations.
 
 ### 2. Guaranteed Structured Outputs
-Say goodbye to JSON parsing failures and prompt injection. CourseFuzz enforces **100% Strict Structured Outputs** at the token generation level via native Pydantic schema alignment (using OpenAI's `beta.chat.completions.parse`). Every hypothesis payload generated is perfectly typed and immediately ready for execution.
+Say goodbye to JSON parsing failures and prompt injection. CourseFuzz enforces **100% Strict Structured Outputs** at the token generation level via native Pydantic schema alignment (using OpenAI's `chat.completions.parse`). Every hypothesis payload generated is perfectly typed and immediately ready for execution.
 
 ### 3. Enterprise Durability
 CourseFuzz is built for multi-node cloud deployments, not just local scripts.
 - **Distributed Leasing**: Workers claim analysis jobs using raw Postgres `FOR UPDATE SKIP LOCKED`, preventing collision across massively parallel environments.
-- **Transactional Outboxes**: 100% guarantee that analysis events (like UI status updates) are dispatched reliably, regardless of network partitions.
+- **Transactional Outbox (write side)**: Analysis events are atomically written alongside run state changes. The dispatch consumer is a planned Milestone-6 addition.
 - **Immutable Blob Storage**: Artifacts and execution footprints are stored as URI-addressed blobs.
 
 ## How it Works
@@ -55,6 +55,16 @@ CourseFuzz is built for multi-node cloud deployments, not just local scripts.
 - **GitHub App Integration**: Native OAuth workspace binding and repository selection.
 - **Live Terminal UI**: The React frontend doesn't use static spinners. It uses active feedback loops to display the agent's live reasoning attempts and tracebacks.
 - **Fallback Resilience**: Capable of operating entirely offline using procedural deterministic permutation attacks if network boundaries close.
+
+## What Is Not Production Yet
+
+The sections above describe what CourseFuzz *does* today. The items below are **release gates still open** — see [SECURITY.md](docs/SECURITY.md) and [EDGE_CASE_MATRIX.md](docs/EDGE_CASE_MATRIX.md) for full details.
+
+- The public Render deployment uses the AST-restricted local runner, not the gVisor container sandbox. Genuinely untrusted code requires the separate `gvisor` worker backend.
+- URL/LMS ingestion is not implemented.
+- Authentication is deployer-issued opaque keys, not institutional SSO.
+- The zero-cost Render database is a time-bounded demo datastore (30-day expiry, no backups).
+- Real-course generalization beyond the synthetic evaluation corpus is a release blocker.
 
 ## Quick Start
 

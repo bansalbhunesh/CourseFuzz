@@ -34,6 +34,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install -e '.[dev]'
+      - run: python -m pip install pip-audit && python -m pip_audit
       - run: python -m ruff check src tests scripts evaluations
       - run: python scripts/release_guard.py
       - run: python scripts/verify_real_manifest.py

@@ -12,7 +12,7 @@ def main() -> None:
         host="0.0.0.0",
         port=port,
         proxy_headers=True,
-        forwarded_allow_ips="*",
+        forwarded_allow_ips=os.getenv("COURSEFUZZ_FORWARDED_ALLOW_IPS", "*"),
     )
 
 

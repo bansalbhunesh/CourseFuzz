@@ -9,6 +9,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.requests import Request
+from starlette.responses import Response
 
 from coursefuzz.adapters.destinations import DestinationCoordinator, GitHubDestinationAdapter
 from coursefuzz.adapters.hypotheses import build_hypothesis_provider
@@ -96,6 +98,19 @@ def create_app(
             "Last-Event-ID",
         ],
     )
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next: object) -> Response:
+        response = await call_next(request)  # type: ignore[operator]
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        if os.getenv("COURSEFUZZ_COOKIE_SECURE", "1") != "0":
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=63072000; includeSubDomains"
+            )
+        return response
+
     app.include_router(
         build_router(
             service,

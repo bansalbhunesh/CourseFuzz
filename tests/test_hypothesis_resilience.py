@@ -163,11 +163,8 @@ def test_openai_hypothesis_step_uses_low_reasoning_effort() -> None:
     class _FakeChat:
         completions = _FakeCompletions()
 
-    class _FakeBeta:
-        chat = _FakeChat()
-
     provider = object.__new__(OpenAIHypothesisProvider)
-    provider.client = types.SimpleNamespace(beta=_FakeBeta())
+    provider.client = types.SimpleNamespace(chat=_FakeChat())
     provider.model = "gpt-5.6-sol"
 
     hypotheses = provider.propose(

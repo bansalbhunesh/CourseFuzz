@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Protocol
 
 
@@ -22,21 +22,24 @@ class LocalBlobStorage:
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def put(self, key: str, data: bytes) -> str:
-        # Prevent path traversal
-        safe_key = key.replace("..", "").lstrip("/")
+        # Prevent path traversal: reject any segment that is ".." or empty
+        parts = PurePosixPath(key).parts
+        if not parts or any(part in {"..", ""} for part in parts):
+            raise ValueError(f"Unsafe blob key rejected: {key!r}")
+        safe_key = PurePosixPath(*parts).as_posix().lstrip("/")
         filepath = self.base_dir / safe_key
         filepath.parent.mkdir(parents=True, exist_ok=True)
         filepath.write_bytes(data)
-
-        # In a real environment, this might be a file:// or s3:// URI
-        # For simplicity, we just return a prefixed string
         return f"file://{filepath.as_posix()}"
 
     def get(self, uri: str) -> bytes | None:
         if not uri.startswith("file://"):
             return None
-        filepath = Path(uri[7:])
+        filepath = Path(uri[7:]).resolve()
 
+        # Defence-in-depth: the resolved path must be under our base directory
+        if not filepath.is_relative_to(self.base_dir.resolve()):
+            return None
         if not filepath.exists() or not filepath.is_file():
             return None
 

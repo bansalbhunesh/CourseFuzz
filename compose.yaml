@@ -10,7 +10,7 @@ services:
       COURSEFUZZ_COOKIE_SECURE: "${COURSEFUZZ_COOKIE_SECURE:-1}"
       COURSEFUZZ_GITHUB_TOKEN: "${COURSEFUZZ_GITHUB_TOKEN:-}"
       COURSEFUZZ_COMMIT_SHA: "${COURSEFUZZ_COMMIT_SHA:-local-container}"
-      COURSEFUZZ_MODEL: "${COURSEFUZZ_MODEL:-gpt-5.6-sol}"
+      COURSEFUZZ_MODEL: "${COURSEFUZZ_MODEL:-gpt-4o}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
     volumes:
       - coursefuzz-data:/app/data

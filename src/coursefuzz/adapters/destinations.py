@@ -330,7 +330,9 @@ class GitHubDestinationAdapter:
         repository: str,
         tenant_id: str,
         allowed: set[int] | None = None,
-        **kwargs: object,
+        params: dict[str, str] | None = None,
+        json: object | None = None,
+        content: bytes | None = None,
     ) -> httpx.Response:
         allowed = allowed or {200}
         headers = {
@@ -342,7 +344,9 @@ class GitHubDestinationAdapter:
             headers["Authorization"] = f"Bearer {token}"
         last_response: httpx.Response | None = None
         for attempt in range(2):
-            response = self.client.request(method, url, headers=headers, **kwargs)
+            response = self.client.request(
+                method, url, headers=headers, params=params, json=json, content=content,
+            )
             last_response = response
             if response.status_code in allowed:
                 return response

@@ -193,7 +193,7 @@ class OpenAIHypothesisProvider(HypothesisProvider):
         context: HypothesisContext,
         survivors: tuple[SurvivorHint, ...],
     ) -> tuple[AttackHypothesis, ...]:
-        response = self.client.beta.chat.completions.parse(
+        response = self.client.chat.completions.parse(
             model=self.model,
             reasoning={"effort": "low"},
             response_format=HypothesisBatch,

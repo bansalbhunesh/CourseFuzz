@@ -151,6 +151,16 @@ class LocalRestrictedRunner(ExecutionGateway):
                 output_bytes=0,
                 wall_ms=self._elapsed_ms(started),
             )
+        except UnicodeDecodeError:
+            return _RawRun(
+                outcome=ExecutionOutcome.RUNTIME_ERROR,
+                passed=0,
+                failed=num_tests,
+                error="Child process produced non-UTF-8 output",
+                termination_reason="encoding-error",
+                output_bytes=0,
+                wall_ms=self._elapsed_ms(started),
+            )
 
         wall_ms = self._elapsed_ms(started)
         output_bytes = len(completed.stdout.encode("utf-8"))

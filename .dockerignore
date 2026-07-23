@@ -12,3 +12,4 @@ data
 web/node_modules
 web/dist
 work-uvicorn.*.log
+*.stackdump

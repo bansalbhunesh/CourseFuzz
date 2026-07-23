@@ -24,7 +24,7 @@ In local demo mode (`LocalRestrictedRunner`), code is constrained at both the AS
 
 ### A. AST Syntax Whitelist (`runner.py`)
 Before execution, every program is parsed into an Abstract Syntax Tree (AST). The AST visitor enforces a strict node whitelist (`ALLOWED_NODES`).
-- **Permitted Syntax**: Basic arithmetic (`+`, `-`, `*`, `%`, `**`), comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`), conditional branches (`if`, `if/else`), loop control (`for`, `while`), subscript access (`memo[n]`), and safe recursion.
+- **Permitted Syntax**: Basic arithmetic (`+`, `-`, `*`, `%`), comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`), boolean logic (`and`, `or`), conditional branches (`if`/`elif`/`else`), unary negation, and `return`. Only `Name` and `Constant` leaf nodes are allowed — no function calls, attribute access, subscripts, loops, comprehensions, imports, or assignments.
 - **Prohibited Syntax**: Import statements (`import os`, `import sys`), file I/O, `eval`, `exec`, process creation, and network calls.
 
 ### B. Builtins Isolation
@@ -35,10 +35,10 @@ Execution occurs within an isolated global scope (`globals_dict`) where `__built
 
 ## 2. Subprocess Resource Limits (`sandbox.py`)
 
-When running in subprocess isolation mode (`sandbox.py`), OS-level process limits are enforced via `resource.setrlimit`:
-- **Memory Ceiling**: Hard-capped to **128 MB RAM** per process (`RLIMIT_AS`). Memory-exhaustion loops (`'a' * 10**9`) fail immediately with `MemoryError`.
-- **CPU Wall Deadline**: Hard-capped to **1.0–2.0 seconds** CPU wall-clock time. Infinite loops (`while True: pass`) are forcefully terminated with `subprocess.TimeoutExpired`.
-- **Output Ceiling**: Captured stdout/stderr is truncated to **4 KB max** to prevent buffer flooding.
+When running in subprocess isolation mode (`adapters/sandbox.py`), the child process is constrained by the parent's `subprocess.run` parameters:
+- **Wall-Clock Deadline**: Hard-capped to **1.5 seconds** (default `timeout_seconds`). Children exceeding the deadline are killed with `subprocess.TimeoutExpired`.
+- **Output Ceiling**: Captured stdout is checked against a **1 MB** limit after the child exits. Programs producing excessive output will typically hit the wall-clock deadline first due to pipe back-pressure.
+- **Environment Stripping**: The child inherits only `PYTHONIOENCODING=utf-8` and `PYTHONUTF8=1` — all other environment variables (including `PYTHONPATH`, `LD_PRELOAD`, `PYTHONSTARTUP`) are dropped.
 
 ---
 
@@ -56,7 +56,7 @@ For production multi-tenant cloud deployments, Scorch integrates with **gVisor (
 
 | Defense Layer | Mechanism | Threat Protected Against |
 | :--- | :--- | :--- |
-| **AST Parser** | `ALLOWED_NODES` Whitelist | Malicious `import os`, `eval()`, disk/network calls. |
+| **AST Parser** | `ALLOWED_NODES` Whitelist | Malicious `import os`, `eval()`, function calls, attribute access, loops, comprehensions. |
 | **Builtins Sandbox** | `__builtins__` Dictionary Restricting | Access to system internals or process inspection. |
-| **OS Resource Limits** | `resource.setrlimit` + Timeouts | Memory-exhaustion attacks & infinite loops. |
+| **Subprocess Isolation** | Wall-clock timeout + env stripping | Resource exhaustion, environment variable injection. |
 | **Container Runtime** | `gVisor (runsc)` + `--network=none` | Host kernel exploits & lateral network pivot attacks. |
